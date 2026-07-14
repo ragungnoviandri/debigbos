@@ -18,11 +18,17 @@ class ProviderRegistry:
         self._providers: dict[str, ModelProvider] = {}
 
     async def initialize(self) -> None:
-        """Initialize configured providers."""
+        """Initialize configured providers. Only creates providers with valid API keys."""
         for name, provider_cfg in self.config.providers.items():
-            provider = self._create_provider(name, provider_cfg)
-            if provider:
-                self._providers[name] = provider
+            # Skip providers without API keys (unless they don't need one, like ollama)
+            if name not in ("ollama",) and (not provider_cfg.api_key or provider_cfg.api_key.startswith("${")):
+                continue
+            try:
+                provider = self._create_provider(name, provider_cfg)
+                if provider:
+                    self._providers[name] = provider
+            except Exception:
+                pass
 
     def _create_provider(self, name: str, cfg: ProviderConfig) -> ModelProvider | None:
         """Create a provider instance from config."""
