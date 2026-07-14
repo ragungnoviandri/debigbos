@@ -359,10 +359,13 @@ class BigBosAgent:
         session.add_message(Message(role="system", content=system_prompt))
 
         # Inject relevant memories
-        relevant = self.memory.recall(user_input, k=self.config.memory.vector_search_k)
-        if relevant:
-            mem_text = "\n".join(f"- {m.summary or m.content[:200]}" for m in relevant)
-            session.add_message(Message(role="system", content=f"Relevant context from past:\n{mem_text}"))
+        try:
+            relevant = self.memory.recall(user_input, k=self.config.memory.vector_search_k)
+            if relevant:
+                mem_text = "\n".join(f"- {m.summary or m.content[:200]}" for m in relevant[:3])
+                session.add_message(Message(role="system", content=f"Relevant context from past:\n{mem_text}"))
+        except Exception:
+            pass  # Memory recall is optional
 
         # Add user message
         user_msg = Message(role="user", content=user_input)

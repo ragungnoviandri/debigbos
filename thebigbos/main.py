@@ -86,8 +86,8 @@ def parse_args() -> argparse.Namespace:
 
     # Sessions (list/rename)
     sessions_parser = subparsers.add_parser("sessions", help="List or rename sessions")
-    sessions_parser.add_argument("action", nargs="?", choices=["list", "rename"], default="list",
-                                 help="list or rename")
+    sessions_parser.add_argument("action", nargs="?", choices=["list", "rename", "fix"], default="list",
+                                 help="list, rename, or fix corrupted sessions")
     sessions_parser.add_argument("id_or_title", nargs="*", default=[],
                                  help="Session ID (for rename: ID new_title)")
     sessions_parser.add_argument("-w", "--workspace", type=str, default=".",
@@ -872,6 +872,24 @@ async def run_sessions(args: argparse.Namespace) -> None:
             else:
                 print(f"Session '{sid}' not found. Use 'thebigbos sessions list' to see IDs.")
         conn.commit()
+
+    elif args.action == "fix":
+        # Remove sessions with 0 messages (corrupted/empty)
+        deleted = conn.execute(
+            "DELETE FROM sessions WHERE id NOT IN (SELECT DISTINCT session_id FROM messages)"
+        ).rowcount
+        conn.commit()
+        print(f"Cleaned {deleted} empty/corrupted sessions.")
+        # Also remove duplicate sessions
+        conn.execute("""
+            DELETE FROM sessions WHERE rowid NOT IN (
+                SELECT MIN(rowid) FROM sessions GROUP BY id
+            )
+        """)
+        conn.commit()
+        if conn.total_changes > 0:
+            print(f"Removed {conn.total_changes} duplicate entries.")
+        print("Run 'thebigbos sessions list' to see remaining sessions.")
 
     conn.close()
 
