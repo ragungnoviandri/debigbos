@@ -7,6 +7,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field
 
+from .auth import get_auth_manager
+
 
 class ProviderConfig(BaseModel):
     """Configuration for a single model provider."""
@@ -89,8 +91,11 @@ DEFAULT_CONFIG = Config(
         ),
         "opencode-go": ProviderConfig(
             api_key="${OPENCODE_GO_API_KEY}",
-            base_url="https://api.opencode.ai/v1",
-            models=["deepseek-v4-pro", "deepseek-v3", "qwen-plus", "qwen-max", "kimi-k2", "glm-4", "minimax-m1", "mimo-v2"],
+            base_url="https://opencode.ai/zen/go/v1",
+            models=["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v3.2", "deepseek-v3", "qwen-plus", "qwen-max",
+                    "qwen3.5-397b", "kimi-k2", "kimi-k2.6", "glm-4", "glm5",
+                    "minimax-m1", "minimax-m2.5", "minimax-m2.7", "minimax-m3",
+                    "mimo-v2", "mistral-large-3"],
             default_model="deepseek-v4-pro",
         ),
         "openrouter": ProviderConfig(
@@ -187,62 +192,36 @@ class ConfigManager:
                 base[key] = value
 
     def _resolve_api_keys(self, config: Config) -> None:
-        """Resolve env-var API keys in provider configs. Also auto-detect from OpenCode/Hermes."""
-        for name, provider in config.providers.items():
-            provider.api_key = self._resolve_env(provider.api_key)
-            # If still no key, try to find it from OpenCode or Hermes auth files
-            if not provider.api_key or provider.api_key.startswith("${"):
-                provider.api_key = self._detect_key_from_external(name)
+        """Resolve API keys with priority: env var > auth.json > OpenCode/Hermes auto-detect."""
+        auth = get_auth_manager()
 
-    def _detect_key_from_external(self, provider_name: str) -> str:
-        """Auto-detect API keys from OpenCode and Hermes auth files."""
-        import json
-
-        # Map provider names to the keys used in external auth files
-        provider_map = {
-            "opencode-go": ["opencode-go", "opencode_go"],
-            "opencode-zen": ["opencode-zen", "opencode_zen"],
-            "openai": ["openai"],
-            "anthropic": ["anthropic"],
+        # Map provider names to their env vars
+        env_map = {
+            "openai": "OPENAI_API_KEY",
+            "anthropic": "ANTHROPIC_API_KEY",
+            "opencode-go": "OPENCODE_GO_API_KEY",
+            "opencode-zen": "OPENCODE_ZEN_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "deepseek": "DEEPSEEK_API_KEY",
+            "together": "TOGETHER_API_KEY",
         }
-        search_names = provider_map.get(provider_name, [provider_name])
 
-        # Check OpenCode auth (~/.local/share/opencode/auth.json)
-        oc_auth = Path.home() / ".local" / "share" / "opencode" / "auth.json"
-        if oc_auth.exists():
-            try:
-                data = json.loads(oc_auth.read_text(encoding="utf-8"))
-                for name in search_names:
-                    if name in data and data[name].get("key"):
-                        return data[name]["key"]
-            except Exception:
-                pass
+        for name, provider in config.providers.items():
+            # Skip ollama — no API key needed
+            if name == "ollama":
+                continue
 
-        # Check Hermes auth (platform-specific)
-        hermes_paths = [
-            Path.home() / "AppData" / "Local" / "hermes" / "auth.json",
-            Path.home() / ".local" / "share" / "hermes" / "auth.json",
-            Path.home() / "Library" / "Application Support" / "hermes" / "auth.json",
-        ]
-        for hp in hermes_paths:
-            if hp.exists():
-                try:
-                    data = json.loads(hp.read_text(encoding="utf-8"))
-                    pool = data.get("credential_pool", {})
-                    for name in search_names:
-                        if name in pool:
-                            for cred in pool[name]:
-                                src = cred.get("source", "")
-                                if src.startswith("env:"):
-                                    env_var = src[4:]
-                                    val = os.environ.get(env_var, "")
-                                    if val:
-                                        return val
-                except Exception:
-                    pass
-                    pass
+            env_var = env_map.get(name)
+            # Use AuthManager's priority resolution
+            resolved = auth.resolve_key(name, env_var)
+            if resolved:
+                provider.api_key = resolved
 
-        return ""
+            # Also resolve base_url from auth.json if stored there
+            stored_url = auth.get_base_url(name)
+            if stored_url and (not provider.base_url or provider.base_url.startswith("http://localhost")):
+                provider.base_url = stored_url
 
     def get_provider_config(self, name: str) -> ProviderConfig | None:
         """Get config for a specific provider."""

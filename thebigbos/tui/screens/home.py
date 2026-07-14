@@ -47,9 +47,11 @@ from ..keymap import KeymapRegistry
 
 
 class ChatInput(TextArea):
-    """Multi-line input. Enter=newline, Ctrl+Enter=send, Button=send. Max 3 rows."""
+    """Multi-line input. Enter=Send, Shift+Enter=newline."""
 
-    BINDINGS = [("enter", "action_submit_text", "Send")]
+    BINDINGS = [
+        ("enter", "action_submit_text", "Send"),
+    ]
 
     class Submitted(Message):
         control = None
@@ -59,7 +61,7 @@ class ChatInput(TextArea):
 
     def on_mount(self) -> None:
         self.styles.max_height = 6
-        self.border_title = "Ctrl+Enter to send"
+        self.border_title = "Enter=Send, Shift+Enter=newline"
 
     def action_submit_text(self) -> None:
         text = self.text.strip()
@@ -130,6 +132,8 @@ class SidebarWidget(Static):
         if self.thinking:
             lines.append(" [bold yellow]...thinking...[/bold yellow]")
             lines.append("")
+        if self.session_id:
+            lines.append(f" Session: [dim]{self.session_id}[/dim]")
         if self.session_title and self.session_title != "Untitled":
             lines.append(f" Title: {self.session_title[:30]}")
         lines.append("")

@@ -493,6 +493,8 @@ class BigBosAgent:
         session = self.sessions.active
         self.state.step_count = 0
 
+        self._emit("thinking", "")
+
         system_prompt = self._build_system_prompt()
         session.add_message(Message(role="system", content=system_prompt))
 

@@ -315,7 +315,9 @@ PROVIDER_CATALOG = {
 async def run_setup(args: argparse.Namespace) -> None:
     """Interactive setup - pick provider, model, enter API key with a nice menu."""
     import json
+    from thebigbos.config.auth import get_auth_manager
 
+    auth = get_auth_manager()
     workspace = Path(args.workspace).resolve()
     if getattr(args, "global_config", False):
         config_path = Path.home() / ".config" / "thebigbos" / "config.json"
@@ -342,13 +344,15 @@ async def run_setup(args: argparse.Namespace) -> None:
         tag = ""
         if config.get("active_provider") == pname:
             tag = " [CURRENT]"
-        # Check if has API key
+        # Check if has API key (from env, auth.json, or config)
         has_key = False
         prov_cfg = config.get("providers", {}).get(pname, {})
         api_key = prov_cfg.get("api_key", "")
         if api_key and not api_key.startswith("${") and api_key.strip():
             has_key = True
         elif info["env_var"] and os.environ.get(info["env_var"], ""):
+            has_key = True
+        elif auth.get_key(pname):
             has_key = True
         elif info["env_var"] is None:  # ollama
             has_key = True
@@ -397,48 +401,55 @@ async def run_setup(args: argparse.Namespace) -> None:
 
     model = info["models"][midx]
 
-    # Step 3: API key
+    # Step 3: API key — save to auth.json (persistent), env var optional
     print()
     if info["env_var"]:
         env_val = os.environ.get(info["env_var"], "")
-        existing_key = prov_cfg.get("api_key", "") if (prov_cfg := config.get("providers", {}).get(provider, {})) else ""
+        auth_key = auth.get_key(provider)
+        existing_key = ""
+        if prov_cfg := config.get("providers", {}).get(provider, {}):
+            existing_key = prov_cfg.get("api_key", "")
 
-        # Check if key is hardcoded (starts with sk- or similar, not ${...})
         is_hardcoded = existing_key and not existing_key.startswith("${")
         is_env_set = bool(env_val)
-        is_env_ref = existing_key.startswith("${")
+        has_auth_key = bool(auth_key)
 
         if is_hardcoded:
             print(f"API key is hardcoded in config file (not safe for git).")
-            change = input("Store as env var instead? (y/n) [y]: ").strip().lower()
+            change = input("Move to auth.json instead? (y/n) [y]: ").strip().lower()
             if change != "n":
-                _save_to_env(info["env_var"], existing_key)
-                config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
-                print(f"Saved to env var ${info['env_var']}, config updated to reference it.")
-                existing_key = f"${{{info['env_var']}}}"
-        elif is_env_set:
-            print(f"API key found in ${info['env_var']} (env var)")
-        elif is_env_ref:
-            print(f"Config references ${info['env_var']} but env var is NOT set.")
-            key_input = input(f"Enter API key for {provider} (or press Enter to skip): ").strip()
-            if key_input:
-                _save_to_env(info["env_var"], key_input)
-                print(f"Saved to env var ${info['env_var']}.")
-        else:
-            print(f"No API key found for {provider}.")
-            print(f"You can either:")
-            print(f"  1. Set env var (recommended): set {info['env_var']}=<your-key>")
-            print(f"  2. Enter key now (saves to env var automatically)")
-            print()
-            key_input = input(f"Enter API key for {provider} (or press Enter to skip): ").strip()
-            if key_input:
-                _save_to_env(info["env_var"], key_input)
+                auth.set_key(provider, existing_key, info["base_url"])
+                # Update config to reference env var
                 if "providers" not in config:
                     config["providers"] = {}
                 if provider not in config["providers"]:
                     config["providers"][provider] = {}
                 config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
-                print(f"Saved to env var ${info['env_var']}.")
+                print(f"Saved to ~/.config/thebigbos/auth.json")
+        elif is_env_set:
+            print(f"API key found in ${info['env_var']} (env var)")
+            save_to_auth = input("Also save to auth.json for persistence? (y/n) [y]: ").strip().lower()
+            if save_to_auth != "n":
+                auth.set_key(provider, env_val, info["base_url"])
+                print(f"Saved to ~/.config/thebigbos/auth.json")
+        elif has_auth_key:
+            print(f"API key found in ~/.config/thebigbos/auth.json")
+        else:
+            print(f"No API key found for {provider}.")
+            print(f"  Stored in: ~/.config/thebigbos/auth.json")
+            print(f"  Or set env var (temporary): set {info['env_var']}=<your-key>")
+            print()
+            key_input = input(f"Enter API key for {provider} (press Enter to skip): ").strip()
+            if key_input:
+                auth.set_key(provider, key_input, info["base_url"])
+                # Also set env var for current session
+                os.environ[info["env_var"]] = key_input
+                if "providers" not in config:
+                    config["providers"] = {}
+                if provider not in config["providers"]:
+                    config["providers"][provider] = {}
+                config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
+                print(f"Saved to ~/.config/thebigbos/auth.json")
     else:
         # Ollama - no key needed
         pass
@@ -455,7 +466,7 @@ async def run_setup(args: argparse.Namespace) -> None:
         if info["env_var"]:
             config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
 
-    # Save
+    # Save config
     config["active_provider"] = provider
     config["active_model"] = model
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -466,19 +477,18 @@ async def run_setup(args: argparse.Namespace) -> None:
     print(f"  CONFIGURED!")
     print(f"  Provider: {provider}")
     print(f"  Model:    {model}")
-    print(f"  Saved:    {config_path}")
+    print(f"  Config:   {config_path}")
+    print(f"  Auth:     {auth.AUTH_FILE}")
     print("=" * 50)
 
+    # Check if key is actually available
     if info["env_var"]:
-        prov_cfg = config.get("providers", {}).get(provider, {})
-        api_key = prov_cfg.get("api_key", "")
-        has_key = bool(api_key and not api_key.startswith("${"))
-        env_key = bool(os.environ.get(info["env_var"], ""))
-        if not has_key and not env_key:
+        resolved = auth.resolve_key(provider, info["env_var"])
+        if not resolved:
             print()
             print("[!] API key still needed!")
-            print(f"    set {info['env_var']}=<your-key>")
-            print(f"  OR re-run: thebigbos setup")
+            print(f"    Run again: thebigbos setup")
+            print(f"    Or: thebigbos configure --key {provider}=<your-key>")
 
     print()
     print("Now run: thebigbos")
@@ -574,12 +584,18 @@ async def run_configure(args: argparse.Namespace) -> None:
         if "=" in args.key:
             provider, key_val = args.key.split("=", 1)
             provider = provider.strip()
+            key_val = key_val.strip()
+            # Save to auth.json for persistence
+            from thebigbos.config.auth import get_auth_manager
+            auth = get_auth_manager()
+            auth.set_key(provider, key_val)
+            # Also update config reference
             if "providers" not in config:
                 config["providers"] = {}
             if provider not in config["providers"]:
                 config["providers"][provider] = {}
-            config["providers"][provider]["api_key"] = key_val.strip()
-            print(f"API key set for {provider}")
+            config["providers"][provider]["api_key"] = f"${{{PROVIDER_CATALOG.get(provider, {}).get('env_var', '')}}}"
+            print(f"API key saved to ~/.config/thebigbos/auth.json for {provider}")
             changed = True
 
     if args.soul_name:
