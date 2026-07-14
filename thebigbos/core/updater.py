@@ -141,10 +141,9 @@ class Updater:
                 ["git", "-C", str(self.repo_path), "pull", "origin", "main"],
                 capture_output=not show_output, text=True, timeout=30
             )
-            if show_output:
-                print(result.stdout)
-            elif "Already up to date" in (result.stdout or ""):
-                return False
+            if not show_output:
+                if "Already up to date" in (result.stdout or ""):
+                    return False
 
             # Reinstall deps if needed
             venv = self.repo_path.parent / "venv"
