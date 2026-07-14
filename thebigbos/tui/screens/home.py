@@ -603,11 +603,30 @@ class HomeScreen(Screen[Any]):
             else:
                 self.notify(f"Session {sid} not found", severity="error")
 
-        elif cmd.startswith("/model "):
+        elif cmd == "/copy":
+            self._copy_last_response()
+            return
             if self.agent:
                 self.agent.config.active_model = cmd[7:].strip()
                 self.notify(f"Model: {self.agent.config.active_model}")
                 self._update_sidebar()
+
+    def _copy_last_response(self) -> None:
+        """Copy last response to clipboard via platform command."""
+        import subprocess
+        txt = ""
+        for msg in (self.agent.sessions.active.messages if self.agent and self.agent.sessions.active else []):
+            if msg.role == "assistant" and msg.content:
+                txt = msg.content
+        if txt:
+            if __import__("sys").platform == "win32":
+                subprocess.run("clip", input=txt[:5000].encode("utf-8", errors="replace"), check=False)
+            else:
+                subprocess.run("pbcopy" if __import__("sys").platform == "darwin" else ["xclip", "-sel", "c"],
+                             input=txt.encode("utf-8", errors="replace"), check=False)
+            self.notify("Copied to clipboard!")
+        else:
+            self.notify("Nothing to copy", severity="warning")
 
     def _show_help(self) -> None:
         """Show help in the response area."""
@@ -624,6 +643,7 @@ class HomeScreen(Screen[Any]):
 | `/models` | List available models |
 | `/skills` | List available skills |
 | `/model <id>` | Switch active model |
+| `/copy` | Copy last response to clipboard |
 | `/remember <key>:<value>` | Store a fact |
 | `/recall <query>` | Search memories |
 """
