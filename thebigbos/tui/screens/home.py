@@ -1695,11 +1695,11 @@ class HomeScreen(Screen[Any]):
         plan_btn = self.query_one("#mode-plan-btn", Button)
         build_btn = self.query_one("#mode-build-btn", Button)
         if mode == "plan":
-            plan_btn.variant = "primary"
-            build_btn.variant = "default"
+            plan_btn.variant = "warning"   # orange
+            build_btn.variant = "default"  # gray
         else:
-            plan_btn.variant = "default"
-            build_btn.variant = "primary"
+            plan_btn.variant = "default"   # gray
+            build_btn.variant = "primary"  # blue
 
     def action_focus_prompt(self) -> None:
         self.query_one("#prompt-input", ChatInput).focus()
