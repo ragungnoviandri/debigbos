@@ -768,10 +768,12 @@ class BigBosAgent:
             content=f"Summarize this conversation concisely, preserving key decisions, code changes, and learnings:\n\n{summary_input}",
         )
 
+        # Use a lightweight model for summarization; fallback to active model
+        summary_model = self.config.small_model or self.config.active_model
         try:
             response = await provider.chat(
                 [summary_msg], [],
-                ModelOptions(model=self.config.small_model, max_tokens=800),
+                ModelOptions(model=summary_model, max_tokens=800),
             )
             self.state.compacted_summary = response.content
             self.state.is_compacted = True

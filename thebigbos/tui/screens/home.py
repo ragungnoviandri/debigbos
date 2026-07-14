@@ -1424,15 +1424,18 @@ class HomeScreen(Screen[Any]):
 
         elif cmd == "/compact":
             if self.agent and self.agent.sessions.active:
-                response_area.write("[bold yellow]Compacting context...[/bold yellow]\n")
-                await self.agent._compact_context()
-                token_count = self.agent.providers.active.count_tokens(
-                    self.agent.sessions.active.to_llm_format()
-                ) if self.agent.providers.active else 0
-                msg_count = len(self.agent.sessions.active.messages)
-                response_area.write(
-                    f"[green]Context compacted![/green] {msg_count} messages, ~{token_count} tokens\n"
-                )
+                sess = self.agent.sessions.active
+                before = len(sess.messages)
+                response_area.write(f"[bold yellow]Compacting... ({before} msgs)[/bold yellow]\n")
+                try:
+                    await self.agent._compact_context()
+                    after = len(sess.messages)
+                    response_area.write(
+                        f"[green]Compacted![/green] {before} → {after} messages\n"
+                    )
+                    self._load_history()
+                except Exception as e:
+                    response_area.write(f"[red]Compaction failed:[/red] {e}\n")
             else:
                 response_area.write("[yellow]No active session to compact.[/yellow]\n")
 
