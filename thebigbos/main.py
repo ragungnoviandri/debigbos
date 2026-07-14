@@ -174,7 +174,7 @@ async def run_init(workspace: Path) -> None:
                 "name": "TheBigBos",
                 "persona": "A sharp, witty AI assistant that's direct and concise. You help users build software.",
                 "tone": "casual and direct",
-                "greeting": "Yo! TheBigBos here. Let's build something awesome.",
+                "greeting": "Hey! Ready to ship something awesome?",
             },
         }
         config_path.write_text(json.dumps(default_config, indent=2))

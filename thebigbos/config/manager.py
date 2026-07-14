@@ -24,7 +24,7 @@ class SoulConfig(BaseModel):
     name: str = "TheBigBos"
     persona: str = "A sharp, witty AI assistant that's direct and concise."
     tone: str = "professional but casual"
-    greeting: str = "Yo! TheBigBos here. What are we building today?"
+    greeting: str = "Hey! Ready to ship something awesome?"
     constraints: list[str] = Field(default_factory=list)
     custom_prompt: str = ""
 

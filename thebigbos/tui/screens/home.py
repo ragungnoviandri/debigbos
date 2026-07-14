@@ -86,8 +86,41 @@ class StatusBar(Static):
     mode: reactive[str] = reactive("build")
     elapsed: reactive[float] = reactive(0)
     thinking: reactive[bool] = reactive(False)
+    done_flash: reactive[bool] = reactive(False)
     api_info: reactive[str] = reactive("")
     api_error: reactive[str] = reactive("")
+
+    _spinner_frame: int = 0
+    _think_start: float = 0.0
+    SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+    def watch_thinking(self, thinking: bool) -> None:
+        """Flash 'done' indicator when thinking finishes."""
+        if thinking:
+            self._think_start = time.time()
+            self.done_flash = False
+        elif self._think_start > 0:
+            # Was thinking, now done — flash the checkmark
+            self.done_flash = True
+            self._spinner_frame = 0
+            self.elapsed = time.time() - self._think_start
+            # Clear flash after 3 seconds
+            def _clear():
+                self.done_flash = False
+                self.refresh(layout=False)
+            self.set_timer(3.0, _clear)
+
+    def on_mount(self) -> None:
+        """Animate spinner & elapsed time while thinking."""
+        self.set_interval(0.1, self._tick)
+
+    def _tick(self) -> None:
+        """Update spinner frame and live elapsed time."""
+        if self.thinking:
+            self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
+            if self._think_start > 0:
+                self.elapsed = time.time() - self._think_start
+            self.refresh(layout=False)
 
     def render(self) -> str:
         lines = []
@@ -102,7 +135,10 @@ class StatusBar(Static):
         if self.elapsed > 0:
             parts.append(f"{self.elapsed:.0f}s")
         if self.thinking:
-            parts.append("[yellow]thinking...[/yellow]")
+            frame = self.SPINNER_FRAMES[self._spinner_frame]
+            parts.append(f"[yellow]{frame} thinking...[/yellow]")
+        elif self.done_flash:
+            parts.append("[green]✓ done[/green]")
         lines.append(" │ ".join(parts))
 
         # Line 2: API debug (only when there's info)
@@ -239,7 +275,6 @@ class HomeScreen(Screen[Any]):
         self._response = ""
         self._tool_log: list[dict[str, Any]] = []
         self._thinking = False
-        self._chat_start = 0.0
         self._initialized = False
 
     def compose(self) -> ComposeResult:
@@ -319,7 +354,14 @@ class HomeScreen(Screen[Any]):
             self.agent.start_session()
             response_area = self.query_one("#response-area", ResponseArea)
             response_area.clear()
-            response_area.write(f"[bold cyan]{self.agent.soul.personalize_greeting()}[/bold cyan]\n")
+            banner = self.agent.soul.welcome_banner(
+                model=self.agent.config.active_model,
+                provider=self.agent.config.active_provider,
+                workspace=str(self.workspace),
+                skills=len(self.agent.skills.list_skills()),
+                tools=len(self.agent.tools.get_tool_names()),
+            )
+            response_area.write(banner)
             self._update_sidebar()
             self._populate_session_select()
             self.notify("New session started")
@@ -375,17 +417,21 @@ class HomeScreen(Screen[Any]):
             # Set up event callbacks for TUI updates
             self.agent.on_event(self._on_agent_event)
 
-            # Show config
-            self._show_config_banner()
-
             # Lazy-load external sessions for the dropdown
             self.agent._ensure_sessions_imported()
 
             # Don't create a session yet — wait for first chat message
-            # Just show ready state
-            greeting = self.agent.soul.personalize_greeting()
-            response_area.write(f"\n[bold cyan]{greeting}[/bold cyan]\n")
-            response_area.write("[dim]Start typing to begin — session will be created on first message[/dim]\n")
+            # Show rich welcome banner
+            sessions = len(self.agent.memory.list_sessions(limit=100))
+            banner = self.agent.soul.welcome_banner(
+                model=self.agent.config.active_model,
+                provider=self.agent.config.active_provider,
+                workspace=str(self.workspace),
+                skills=len(self.agent.skills.list_skills()),
+                tools=len(self.agent.tools.get_tool_names()),
+                sessions=sessions,
+            )
+            response_area.write(banner)
 
             self._populate_session_select()
             self._update_sidebar()
@@ -426,6 +472,7 @@ class HomeScreen(Screen[Any]):
 
         elif event_type == "done":
             self._thinking = False
+            response_area.write("\n[dim green]✓[/dim green]")
             self._update_sidebar()
 
         elif event_type == "tool_executing":
@@ -603,7 +650,14 @@ class HomeScreen(Screen[Any]):
         if session_id == "__new__":
             response_area = self.query_one("#response-area", ResponseArea)
             response_area.clear()
-            response_area.write(f"[bold cyan]{self.agent.soul.personalize_greeting()}[/bold cyan]\n")
+            banner = self.agent.soul.welcome_banner(
+                model=self.agent.config.active_model,
+                provider=self.agent.config.active_provider,
+                workspace=str(self.workspace),
+                skills=len(self.agent.skills.list_skills()),
+                tools=len(self.agent.tools.get_tool_names()),
+            )
+            response_area.write(banner)
             self._update_sidebar()
             self._populate_session_select()
             self.notify("New session started")
@@ -651,7 +705,6 @@ class HomeScreen(Screen[Any]):
         response_area.write(f"\n[bold yellow]You:[/bold yellow] {text}\n")
 
         if self.agent:
-            self._chat_start = time.time()
             self._thinking = True
             self._response = ""
             self._tool_log = []
@@ -666,6 +719,7 @@ class HomeScreen(Screen[Any]):
         if text:
             input_widget.clear()
             await self._handle_chat_input(text)
+
     async def _run_chat(self, user_input: str) -> None:
         """Run chat with streaming response — text appears in real-time."""
         response_area = self.query_one("#response-area", ResponseArea)
@@ -679,9 +733,6 @@ class HomeScreen(Screen[Any]):
             sidebar.error_msg = error
         finally:
             self._thinking = False
-            elapsed = time.time() - getattr(self, "_chat_start", time.time())
-            status_bar = self.query_one("#status-bar", StatusBar)
-            status_bar.elapsed = elapsed
             sidebar.error_msg = ""
             self._update_sidebar()
 
