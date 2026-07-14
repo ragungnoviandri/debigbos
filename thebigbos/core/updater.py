@@ -121,19 +121,32 @@ class Updater:
             pass
         return None
 
-    def update(self) -> bool:
+    def update(self, show_output: bool = True) -> bool:
         """Pull latest from git and reinstall deps. Returns True if updated."""
         if not self.repo_path:
             return False
         try:
+            # Show what's changed
+            if show_output:
+                subprocess.run(
+                    ["git", "-C", str(self.repo_path), "fetch", "origin"],
+                    timeout=15
+                )
+                subprocess.run(
+                    ["git", "-C", str(self.repo_path), "log", "HEAD..origin/main", "--oneline"],
+                    timeout=10
+                )
+
             result = subprocess.run(
                 ["git", "-C", str(self.repo_path), "pull", "origin", "main"],
-                capture_output=True, text=True, timeout=30
+                capture_output=not show_output, text=True, timeout=30
             )
-            if "Already up to date" in result.stdout:
+            if show_output:
+                print(result.stdout)
+            elif "Already up to date" in (result.stdout or ""):
                 return False
 
-            # Reinstall deps
+            # Reinstall deps if needed
             venv = self.repo_path.parent / "venv"
             pip = venv / "bin" / "pip" if os.name != "nt" else venv / "Scripts" / "pip.exe"
             if pip.exists():

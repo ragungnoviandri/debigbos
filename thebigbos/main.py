@@ -921,12 +921,18 @@ async def run_update(args: argparse.Namespace) -> None:
         return
 
     print(f"\n  {update_info} available!")
-    if input("  Update now? [y/n]: ").strip().lower() == "y":
-        print("  Pulling...")
-        if u.update():
-            print("  Done! Restart thebigbos to apply.")
-        else:
-            print("  Already up to date or update failed.")
+    if input("  Update now? [y/n]: ").strip().lower() != "y":
+        print("  Skipped.")
+        return
+
+    print("  Pulling...")
+    if u.update(show_output=True):
+        # Show what changed
+        import subprocess
+        subprocess.run(["git", "-C", str(u.repo_path), "diff", "--stat", "HEAD~1..HEAD"])
+        print("\n  Done! Restart thebigbos to apply.")
+    else:
+        print("  Already up to date or update failed.")
 
 
 async def run_uninstall(args: argparse.Namespace) -> None:
