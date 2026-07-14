@@ -573,10 +573,10 @@ class HomeScreen(Screen[Any]):
 
         if isinstance(event, Input.Submitted):
             user_input = event.value.strip()
+            input_widget.value = ""  # Clear explicitly
         else:
             user_input = input_widget.value.strip()
             if user_input:
-                input_widget.value = ""
                 input_widget.value = ""
 
         if not user_input:
