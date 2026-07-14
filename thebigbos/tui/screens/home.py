@@ -575,8 +575,8 @@ class HomeScreen(Screen[Any]):
         with Horizontal(id="prompt-area"):
             # Mode toggle: Plan / Build — click or Tab to switch
             with Vertical(id="mode-toggle"):
-                yield Button("📋\nPlan", variant="default", id="mode-plan-btn", classes="mode-btn")
-                yield Button("🔨\nBuild", variant="primary", id="mode-build-btn", classes="mode-btn")
+                yield Button("Plan", variant="warning", id="mode-plan-btn", classes="mode-btn")
+                yield Button("Build", variant="primary", id="mode-build-btn", classes="mode-btn")
             yield ChatInput(
                 id="prompt-input",
                 classes="chat-input",
@@ -1668,8 +1668,7 @@ class HomeScreen(Screen[Any]):
         self.agent.config.mode = new_mode
         self._update_mode_buttons()
         self._update_sidebar()
-        emoji = "🔨 Build" if new_mode == "build" else "📋 Plan"
-        self.notify(f"Mode: {emoji} — {'read/write' if new_mode == 'build' else 'read-only'}")
+        self.notify(f"Mode: {new_mode.upper()} — {'read/write' if new_mode == 'build' else 'read-only'}")
 
     @on(Button.Pressed, "#mode-plan-btn")
     def _on_mode_plan(self) -> None:
@@ -1677,7 +1676,7 @@ class HomeScreen(Screen[Any]):
             self.agent.config.mode = "plan"
             self._update_mode_buttons()
             self._update_sidebar()
-            self.notify("Mode: 📋 Plan — read-only")
+            self.notify("Mode: PLAN — read-only")
 
     @on(Button.Pressed, "#mode-build-btn")
     def _on_mode_build(self) -> None:
@@ -1685,7 +1684,7 @@ class HomeScreen(Screen[Any]):
             self.agent.config.mode = "build"
             self._update_mode_buttons()
             self._update_sidebar()
-            self.notify("Mode: 🔨 Build — read/write")
+            self.notify("Mode: BUILD — read/write")
 
     def _update_mode_buttons(self) -> None:
         """Update mode button variants based on current mode."""
