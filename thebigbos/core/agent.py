@@ -90,8 +90,8 @@ class BigBosAgent:
         # Don't auto-import on startup — load on demand when user opens /sessions
         self._sessions_imported = False
 
-        # Load previous session if exists
-        self._load_previous_session()
+        # Don't auto-load last session — user picks or starts fresh
+        # _load_previous_session() is kept for manual use but not called here
 
     def _ensure_sessions_imported(self) -> None:
         """Lazy-load external sessions only when needed."""
@@ -218,9 +218,8 @@ class BigBosAgent:
         sessions = self.memory.list_sessions(limit=1)
         if sessions:
             sid = sessions[0]["id"]
-            # Don't load all messages — session picker will handle it
-            session = self.sessions.create_session()
-            session.id = sid
+            # Register with correct ID — no more mismatched dict keys
+            session = self.sessions.register_session(sid)
             session.title = sessions[0].get("title", "")
             session.summary = sessions[0].get("summary", "")
             # Load just last 5 messages for context preview
@@ -239,19 +238,30 @@ class BigBosAgent:
         return session
 
     def continue_session(self, session_id: str) -> Session | None:
-        """Continue a session — load from TheBigBos DB or external source on demand."""
-        session = self.sessions.create_session()
-        session.id = session_id
+        """Continue a session — load from TheBigBos DB or external source on demand.
+
+        Uses register_session() so the session ID is properly tracked in the
+        sessions dict. If the session is already loaded in memory, just
+        switches to it without re-loading.
+        """
+        # If already loaded in memory, just switch
+        if session_id in self.sessions.sessions:
+            self.sessions.switch_session(session_id)
+            self._emit("session_loaded", json.dumps({"id": session_id, "messages": len(self.sessions.active.messages) if self.sessions.active else 0}))
+            return self.sessions.active
+
+        # Register session with correct ID (no more mismatched dict keys!)
+        session = self.sessions.register_session(session_id)
 
         # Try loading from TheBigBos DB first
-        msgs = self.memory.load_messages(session_id, limit=100)
+        msgs = self.memory.load_messages(session_id, limit=200)
         if msgs:
-            recent = msgs[-30:]  # Last 30 messages
+            recent = msgs[-50:]  # Last 50 messages
             for m in recent:
                 session.messages.append(self._db_to_message(m))
             # Sanitize: strip incomplete tool-call sequences (from abrupt kills)
             session.messages = self._sanitize_messages(session.messages)
-            if len(msgs) > 30:
+            if len(msgs) > 50:
                 summary = self.memory.get_session_summary(session_id)
                 if summary:
                     session.messages.insert(0, Message(
@@ -266,7 +276,7 @@ class BigBosAgent:
             self._load_hermes_session(session_id, session)
 
         # Set title from sessions table
-        sessions_list = self.memory.list_sessions(limit=100)
+        sessions_list = self.memory.list_sessions(limit=200)
         for s in sessions_list:
             if s["id"] == session_id:
                 session.title = s.get("title", "")

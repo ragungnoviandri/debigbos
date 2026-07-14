@@ -117,6 +117,46 @@ class BigBosApp(App[Any]):
         width: 100%;
     }
 
+    #session-controls {
+        width: 100%;
+        height: auto;
+    }
+
+    #session-controls Select {
+        width: 1fr;
+    }
+
+    #delete-session-btn {
+        min-width: 4;
+        height: 3;
+        margin-right: 1;
+    }
+
+    .icon-btn {
+        padding: 0;
+    }
+
+    #git-actions {
+        width: 100%;
+        height: auto;
+        margin-top: 1;
+        align: center middle;
+    }
+
+    #git-actions Button {
+        width: 1fr;
+    }
+
+    #sidebar-provider-label, #sidebar-model-label {
+        padding: 0 1;
+        margin-top: 1;
+    }
+
+    #provider-select, #model-select {
+        margin: 0 1;
+        width: 100%;
+    }
+
     /* Dialog styling */
     DialogAlert > Center,
     DialogConfirm > Center,

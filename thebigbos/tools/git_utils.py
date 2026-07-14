@@ -85,6 +85,8 @@ class GitWorkspace:
         if r.returncode != 0:
             return False, r.stderr.strip()
         return True, f"Remote '{remote}' set to {url}"
+
+    def has_changes(self) -> bool:
         """Check if there are any uncommitted changes."""
         return len(self.status_porcelain()) > 0
 

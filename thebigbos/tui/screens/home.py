@@ -200,8 +200,6 @@ class SidebarWidget(Static):
             lines.append(" [dim]Start chatting to create one[/dim]")
         lines.append("")
         lines.append(f" Mode: [bold]{self.mode}[/bold]")
-        lines.append(f" Model: {self.model[:28]}")
-        lines.append(f" Provider: {self.provider[:15]}")
         lines.append("")
 
         if self.context_tokens > 0:
@@ -348,8 +346,22 @@ class HomeScreen(Screen[Any]):
             # Sidebar
             with VerticalScroll(id="sidebar"):
                 yield Label("[bold cyan]Sessions[/bold cyan]", id="sidebar-session-label")
-                yield Select([], id="session-select", prompt="Select session...")
+                with Horizontal(id="session-controls"):
+                    yield Select([], id="session-select", prompt="Select session...")
+                    yield Button("🗑", variant="error", id="delete-session-btn", classes="icon-btn")
+
+                # Provider & Model selectors
+                yield Label("[bold cyan]Provider[/bold cyan]", id="sidebar-provider-label")
+                yield Select([], id="provider-select", prompt="Provider...")
+                yield Label("[bold cyan]Model[/bold cyan]", id="sidebar-model-label")
+                yield Select([], id="model-select", prompt="Model...")
+
                 yield SidebarWidget(id="sidebar-info")
+
+                # Git actions in sidebar
+                with Horizontal(id="git-actions"):
+                    yield Button("📦 Commit", variant="default", id="commit-btn")
+                    yield Button("🚀 Push", variant="default", id="push-btn")
 
         # Prompt area
         with Horizontal(id="prompt-area"):
@@ -358,8 +370,6 @@ class HomeScreen(Screen[Any]):
                 classes="chat-input",
             )
             yield Button("Send", variant="primary", id="send-btn")
-            yield Button("Commit", variant="default", id="commit-btn")
-            yield Button("Push", variant="default", id="push-btn")
 
         yield StatusBar(id="status-bar")
 
@@ -370,7 +380,7 @@ class HomeScreen(Screen[Any]):
             return
 
         self.agent._ensure_sessions_imported()
-        sessions = self.agent.memory.list_sessions(limit=50)
+        sessions = self.agent.memory.list_sessions(limit=200)
 
         options = [("+ New Session", "__new__")]
         active_session = self.agent.sessions.active
@@ -400,7 +410,7 @@ class HomeScreen(Screen[Any]):
     @on(Select.Changed, "#session-select")
     def _on_session_select_changed(self, event: Select.Changed) -> None:
         """Handle session selection from dropdown."""
-        if not event.value or not self.agent or event.value is Select.NULL:
+        if not event.value or not self.agent or event.value is Select.NULL or event.value is Select.BLANK:
             return
         # New session
         if event.value == "__new__":
@@ -432,6 +442,91 @@ class HomeScreen(Screen[Any]):
         else:
             self.notify("Failed to load session", severity="error")
             self._populate_session_select()  # Reset selection
+
+    # ——— Provider & Model selectors ———
+
+    def _populate_provider_select(self) -> None:
+        """Populate provider dropdown with available providers."""
+        if not self.agent:
+            return
+        select = self.query_one("#provider-select", Select)
+        providers = self.agent.providers.list_providers()
+        options = [(name, name) for name in providers]
+        if not options:
+            options = [("No providers", "")]
+        select.set_options(options)
+        # Set to active provider
+        active = self.agent.config.active_provider
+        if active in providers:
+            select.value = active
+
+    def _populate_model_select(self, provider_name: str | None = None) -> None:
+        """Populate model dropdown with models for the given provider."""
+        if not self.agent:
+            return
+        select = self.query_one("#model-select", Select)
+        provider_name = provider_name or self.agent.config.active_provider
+        models = self.agent.providers.list_models(provider_name)
+        if not models:
+            # If provider config not found, try default config
+            cfg = self.agent.config.providers.get(provider_name)
+            if cfg and cfg.models:
+                models = cfg.models
+        options = [(m, m) for m in models]
+        if not options:
+            options = [("No models", "")]
+        select.set_options(options)
+        # Set to active model
+        active = self.agent.config.active_model
+        if active in models:
+            select.value = active
+        elif options:
+            select.value = options[0][1]
+
+    @on(Select.Changed, "#provider-select")
+    def _on_provider_select_changed(self, event: Select.Changed) -> None:
+        """Handle provider selection — switch provider and repopulate models."""
+        if not event.value or not self.agent or event.value is Select.NULL or event.value is Select.BLANK:
+            return
+        old_provider = self.agent.config.active_provider
+        new_provider = event.value
+        if new_provider == old_provider:
+            return
+
+        # Switch provider
+        self.agent.config.active_provider = new_provider
+        # Get first model for this provider as default
+        models = self.agent.providers.list_models(new_provider)
+        if not models:
+            cfg = self.agent.config.providers.get(new_provider)
+            if cfg and cfg.models:
+                models = cfg.models
+        if models:
+            self.agent.config.active_model = models[0]
+            # Also set small model to something reasonable
+            if len(models) > 1 and "mini" in models[1].lower():
+                self.agent.config.small_model = models[1]
+            elif len(models) > 1:
+                self.agent.config.small_model = models[1]
+
+        # Repopulate model dropdown
+        self._populate_model_select(new_provider)
+        self._update_sidebar()
+        self.notify(f"Provider: {new_provider} | Model: {self.agent.config.active_model}")
+
+    @on(Select.Changed, "#model-select")
+    def _on_model_select_changed(self, event: Select.Changed) -> None:
+        """Handle model selection — switch active model."""
+        if not event.value or not self.agent or event.value is Select.NULL or event.value is Select.BLANK:
+            return
+        old_model = self.agent.config.active_model
+        new_model = event.value
+        if new_model == old_model:
+            return
+
+        self.agent.config.active_model = new_model
+        self._update_sidebar()
+        self.notify(f"Model: {new_model}")
 
     async def on_mount(self) -> None:
         """Called when screen is mounted. Initialize agent."""
@@ -475,7 +570,7 @@ class HomeScreen(Screen[Any]):
 
             # Don't create a session yet — wait for first chat message
             # Show rich welcome banner
-            sessions = self.agent.memory.list_sessions(limit=100)
+            sessions = self.agent.memory.list_sessions(limit=200)
             banner = self.agent.soul.welcome_banner(
                 model=self.agent.config.active_model,
                 provider=self.agent.config.active_provider,
@@ -500,6 +595,8 @@ class HomeScreen(Screen[Any]):
                 response_area.write("[dim]No sessions yet. Just start typing to create one![/dim]\n")
 
             self._populate_session_select()
+            self._populate_provider_select()
+            self._populate_model_select()
             self._update_sidebar()
             input_widget.focus()
 
@@ -642,7 +739,7 @@ class HomeScreen(Screen[Any]):
             def on_mount(self) -> None:
                 list_view = self.query_one("#session-list", ListView)
                 current = self.agent.sessions.active
-                for s in self.sessions_data[:20]:
+                for s in self.sessions_data[:100]:
                     title = (s.get("title") or "Untitled")[:45]
                     source = s.get("source", "")
                     src_tag = f" [{source}]" if source else ""
@@ -708,7 +805,7 @@ class HomeScreen(Screen[Any]):
     def _on_session_picked(self, session_id: str | None) -> None:
         """Handle session picker result."""
         if session_id == "__refresh__":
-            sessions = self.agent.memory.list_sessions(limit=30)
+            sessions = self.agent.memory.list_sessions(limit=200)
             if sessions:
                 self._show_session_picker_inline(sessions)
             self._populate_session_select()
@@ -831,6 +928,46 @@ class HomeScreen(Screen[Any]):
             self._update_git_status()
         else:
             self.notify(f"Push failed: {result[:100]}", severity="error")
+
+    @on(Button.Pressed, "#delete-session-btn")
+    async def _on_delete_session_btn(self) -> None:
+        """Delete the currently selected session from the dropdown."""
+        if not self.agent:
+            return
+        select = self.query_one("#session-select", Select)
+        sid = select.value
+        if not sid or sid in (Select.NULL, "__new__", ""):
+            self.notify("No session selected to delete", severity="warning")
+            return
+
+        # Get session info for confirmation
+        sessions = self.agent.memory.list_sessions(limit=200)
+        title = next((s.get("title", "Untitled") for s in sessions if s["id"] == sid), sid[:12])
+
+        from ..dialogs import DialogConfirm
+
+        def _on_confirm(confirmed: bool) -> None:
+            if not confirmed:
+                return
+            self.agent.memory.delete_session(sid)
+            # Also remove from in-memory sessions
+            self.agent.sessions.sessions.pop(sid, None)
+            if self.agent.sessions.active and self.agent.sessions.active.id == sid:
+                self.agent.sessions.active_session_id = None
+            self._populate_session_select()
+            self._update_sidebar()
+            response_area = self.query_one("#response-area", ResponseArea)
+            response_area.clear()
+            response_area.write(f"[dim]Session '{title}' deleted. Start a new one![/dim]")
+            self.notify(f"Deleted: {title[:30]}")
+
+        self.app.push_screen(
+            DialogConfirm(
+                title="Delete Session",
+                message=f"Delete '{title[:40]}'?\nThis cannot be undone.",
+            ),
+            callback=_on_confirm,
+        )
 
     async def _prompt_remote_url(self) -> None:
         """Show dialog to add git remote (stored in project's .git/config)."""
@@ -1042,7 +1179,7 @@ class HomeScreen(Screen[Any]):
         except Exception as e:
             response_area.write(f"[red]Failed to import sessions: {e}[/red]")
             return
-        sessions = self.agent.memory.list_sessions(limit=30)
+        sessions = self.agent.memory.list_sessions(limit=200)
         if not sessions:
             response_area.write("[dim]No sessions found. Start chatting to create one![/dim]")
             return

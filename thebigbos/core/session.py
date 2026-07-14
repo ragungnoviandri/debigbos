@@ -43,9 +43,15 @@ class SessionManager:
 
     def create_session(self, parent_id: str | None = None,
                        is_subagent: bool = False,
-                       subagent_name: str = "") -> Session:
-        """Create a new session, optionally as child of another."""
-        session_id = str(uuid.uuid4())[:8]
+                       subagent_name: str = "",
+                       session_id: str | None = None) -> Session:
+        """Create a new session, optionally as child of another.
+
+        If session_id is provided, use it directly (for restoring persisted sessions).
+        Otherwise a random ID is generated.
+        """
+        if session_id is None:
+            session_id = str(uuid.uuid4())[:8]
         session = Session(
             id=session_id,
             parent_id=parent_id,
@@ -61,6 +67,24 @@ class SessionManager:
             self._subagent_sessions[parent_id].append(session_id)
 
         return session
+
+    def register_session(self, session_id: str,
+                         parent_id: str | None = None,
+                         is_subagent: bool = False,
+                         subagent_name: str = "") -> Session:
+        """Register a session with an explicit ID (e.g., from DB).
+        If a session with this ID already exists in memory, return it
+        and make it active. Otherwise create a new one.
+        """
+        if session_id in self.sessions:
+            self.active_session_id = session_id
+            return self.sessions[session_id]
+        return self.create_session(
+            parent_id=parent_id,
+            is_subagent=is_subagent,
+            subagent_name=subagent_name,
+            session_id=session_id,
+        )
 
     def get_session(self, session_id: str) -> Session | None:
         return self.sessions.get(session_id)

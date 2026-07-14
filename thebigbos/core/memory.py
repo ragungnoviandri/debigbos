@@ -185,7 +185,7 @@ class MemoryManager:
         )
         self.conn.commit()
 
-    def list_sessions(self, limit: int = 20) -> list[dict[str, Any]]:
+    def list_sessions(self, limit: int = 200) -> list[dict[str, Any]]:
         """List recent sessions."""
         rows = self.conn.execute(
             "SELECT id, title, summary, created_at, updated_at, source FROM sessions "
