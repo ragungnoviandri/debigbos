@@ -187,9 +187,62 @@ class ConfigManager:
                 base[key] = value
 
     def _resolve_api_keys(self, config: Config) -> None:
-        """Resolve env-var API keys in provider configs."""
+        """Resolve env-var API keys in provider configs. Also auto-detect from OpenCode/Hermes."""
         for name, provider in config.providers.items():
             provider.api_key = self._resolve_env(provider.api_key)
+            # If still no key, try to find it from OpenCode or Hermes auth files
+            if not provider.api_key or provider.api_key.startswith("${"):
+                provider.api_key = self._detect_key_from_external(name)
+
+    def _detect_key_from_external(self, provider_name: str) -> str:
+        """Auto-detect API keys from OpenCode and Hermes auth files."""
+        import json
+
+        # Map provider names to the keys used in external auth files
+        provider_map = {
+            "opencode-go": ["opencode-go", "opencode_go"],
+            "opencode-zen": ["opencode-zen", "opencode_zen"],
+            "openai": ["openai"],
+            "anthropic": ["anthropic"],
+        }
+        search_names = provider_map.get(provider_name, [provider_name])
+
+        # Check OpenCode auth (~/.local/share/opencode/auth.json)
+        oc_auth = Path.home() / ".local" / "share" / "opencode" / "auth.json"
+        if oc_auth.exists():
+            try:
+                data = json.loads(oc_auth.read_text(encoding="utf-8"))
+                for name in search_names:
+                    if name in data and data[name].get("key"):
+                        return data[name]["key"]
+            except Exception:
+                pass
+
+        # Check Hermes auth (platform-specific)
+        hermes_paths = [
+            Path.home() / "AppData" / "Local" / "hermes" / "auth.json",
+            Path.home() / ".local" / "share" / "hermes" / "auth.json",
+            Path.home() / "Library" / "Application Support" / "hermes" / "auth.json",
+        ]
+        for hp in hermes_paths:
+            if hp.exists():
+                try:
+                    data = json.loads(hp.read_text(encoding="utf-8"))
+                    pool = data.get("credential_pool", {})
+                    for name in search_names:
+                        if name in pool:
+                            for cred in pool[name]:
+                                src = cred.get("source", "")
+                                if src.startswith("env:"):
+                                    env_var = src[4:]
+                                    val = os.environ.get(env_var, "")
+                                    if val:
+                                        return val
+                except Exception:
+                    pass
+                    pass
+
+        return ""
 
     def get_provider_config(self, name: str) -> ProviderConfig | None:
         """Get config for a specific provider."""
