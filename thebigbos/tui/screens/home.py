@@ -573,10 +573,9 @@ class HomeScreen(Screen[Any]):
 
         # Prompt area
         with Horizontal(id="prompt-area"):
-            # Mode toggle: Plan / Build — click or Tab to switch
+            # Mode toggle: single button — click or Tab to switch
             with Vertical(id="mode-toggle"):
-                yield Button("Plan", variant="warning", id="mode-plan-btn", classes="mode-btn")
-                yield Button("Build", variant="primary", id="mode-build-btn", classes="mode-btn")
+                yield Button("Plan", variant="warning", id="mode-toggle-btn", classes="mode-btn")
             yield ChatInput(
                 id="prompt-input",
                 classes="chat-input",
@@ -1670,35 +1669,18 @@ class HomeScreen(Screen[Any]):
         self._update_sidebar()
         self.notify(f"Mode: {new_mode.upper()} — {'read/write' if new_mode == 'build' else 'read-only'}")
 
-    @on(Button.Pressed, "#mode-plan-btn")
-    def _on_mode_plan(self) -> None:
-        if self.agent:
-            self.agent.config.mode = "plan"
-            self._update_mode_buttons()
-            self._update_sidebar()
-            self.notify("Mode: PLAN — read-only")
-
-    @on(Button.Pressed, "#mode-build-btn")
-    def _on_mode_build(self) -> None:
-        if self.agent:
-            self.agent.config.mode = "build"
-            self._update_mode_buttons()
-            self._update_sidebar()
-            self.notify("Mode: BUILD — read/write")
+    @on(Button.Pressed, "#mode-toggle-btn")
+    def _on_mode_toggle(self) -> None:
+        """Toggle between plan and build mode on button click."""
+        self.action_toggle_mode()
 
     def _update_mode_buttons(self) -> None:
-        """Update mode button variants based on current mode."""
+        """Update mode toggle button label to show current mode."""
         if not self.agent:
             return
         mode = self.agent.config.mode
-        plan_btn = self.query_one("#mode-plan-btn", Button)
-        build_btn = self.query_one("#mode-build-btn", Button)
-        if mode == "plan":
-            plan_btn.variant = "warning"   # orange
-            build_btn.variant = "default"  # gray
-        else:
-            plan_btn.variant = "default"   # gray
-            build_btn.variant = "primary"  # blue
+        btn = self.query_one("#mode-toggle-btn", Button)
+        btn.label = mode.upper()
 
     def action_focus_prompt(self) -> None:
         self.query_one("#prompt-input", ChatInput).focus()
