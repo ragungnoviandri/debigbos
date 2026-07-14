@@ -79,11 +79,11 @@ class Updater:
                 return (0, 0, 0)
         return parse(remote) > parse(local)
 
-    def check(self) -> Optional[str]:
+    def check(self, force: bool = False) -> Optional[str]:
         """Check for updates. Returns new version string or None."""
         if not self.repo_path:
             return None
-        if not self.should_check():
+        if not force and not self.should_check():
             return None
 
         # Save check time first

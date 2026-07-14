@@ -943,7 +943,7 @@ async def run_update(args: argparse.Namespace) -> None:
         return
 
     print("  Checking GitHub + git...")
-    update_info = u.check()
+    update_info = u.check(force=True)
     if not update_info:
         print("  Already up to date.")
         # Show recent commits anyway
