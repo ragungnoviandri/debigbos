@@ -50,7 +50,6 @@ class ChatInput(TextArea):
     """Multi-line input. Enter=Send, Ctrl+J=newline."""
 
     BINDINGS = [
-        ("enter", "submit_text", "Send"),
         ("ctrl+j", "newline", "New Line"),
     ]
 
@@ -64,11 +63,16 @@ class ChatInput(TextArea):
         self.styles.max_height = 6
         self.border_title = "Enter=Send  Ctrl+J=newline"
 
-    def action_submit_text(self) -> None:
-        text = self.text.strip()
-        if text:
-            self.post_message(self.Submitted(text))
-            self.clear()
+    def _on_key(self, event) -> None:
+        if event.key == "enter":
+            event.stop()
+            event.prevent_default()
+            text = self.text.strip()
+            if text:
+                self.post_message(self.Submitted(text))
+                self.clear()
+        else:
+            super()._on_key(event)
 
     def action_newline(self) -> None:
         """Insert a newline at cursor position."""
