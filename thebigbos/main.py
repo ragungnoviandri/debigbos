@@ -881,32 +881,34 @@ async def run_update(args: argparse.Namespace) -> None:
     from thebigbos.core.updater import Updater
     from thebigbos import __version__ as local_ver
     u = Updater()
-    print(f"  Current: v{local_ver}")
+    print(f"  TheBigBos v{local_ver}")
+    print(f"  Git: {u.get_current_git_ref()}")
 
     if not u.repo_path:
         print("  Error: Repository not found.")
         return
 
     if getattr(args, "check", False):
-        remote = u.get_remote_version()
-        if remote and u.version_newer(remote, local_ver):
-            print(f"  Update available: v{remote}")
+        update_info = u.check()
+        if update_info:
+            print(f"  Update available: {update_info}")
         else:
             print("  Already up to date.")
         return
 
-    print("  Checking...")
-    remote = u.get_remote_version()
-    if not remote or not u.version_newer(remote, local_ver):
-        print(f"  Already up to date (v{local_ver}).")
+    print("  Checking GitHub + git...")
+    update_info = u.check()
+    if not update_info:
+        print("  Already up to date.")
         return
 
-    print(f"\n  v{remote} available!")
-    if input("  Install? [y/n]: ").strip().lower() == "y":
+    print(f"\n  {update_info} available!")
+    if input("  Update now? [y/n]: ").strip().lower() == "y":
+        print("  Pulling...")
         if u.update():
-            print("  Updated! Restart thebigbos.")
+            print("  Done! Restart thebigbos to apply.")
         else:
-            print("  Update failed.")
+            print("  Already up to date or update failed.")
 
 
 async def run_uninstall(args: argparse.Namespace) -> None:

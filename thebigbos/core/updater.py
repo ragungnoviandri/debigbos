@@ -86,15 +86,39 @@ class Updater:
         if not self.should_check():
             return None
 
-        local = self.get_local_version()
-        remote = self.get_remote_version()
-
-        # Save check time
+        # Save check time first
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
         self.cache_file.write_text(json.dumps({"last_check": time.time()}))
 
+        # Try GitHub release first
+        remote = self.get_remote_version()
+        local = self.get_local_version()
         if remote and self.version_newer(remote, local):
             return remote
+
+        # Fallback: check git commits (for dev updates without releases)
+        return self.check_git_updates()
+
+    def check_git_updates(self) -> Optional[str]:
+        """Check if there are new commits to pull."""
+        if not self.repo_path:
+            return None
+        try:
+            # Fetch without merging
+            subprocess.run(
+                ["git", "-C", str(self.repo_path), "fetch", "origin"],
+                capture_output=True, text=True, timeout=15
+            )
+            # Check if behind
+            result = subprocess.run(
+                ["git", "-C", str(self.repo_path), "rev-list", "--count", "HEAD..origin/main"],
+                capture_output=True, text=True, timeout=10
+            )
+            behind = int(result.stdout.strip() or "0")
+            if behind > 0:
+                return f"{behind} new commit(s)"
+        except Exception:
+            pass
         return None
 
     def update(self) -> bool:
