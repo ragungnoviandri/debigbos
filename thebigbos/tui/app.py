@@ -107,6 +107,16 @@ class BigBosApp(App[Any]):
         padding: 1;
     }
 
+    #sidebar-session-label {
+        padding: 0 1;
+        margin-top: 1;
+    }
+
+    #session-select {
+        margin: 0 1;
+        width: 100%;
+    }
+
     /* Dialog styling */
     DialogAlert > Center,
     DialogConfirm > Center,

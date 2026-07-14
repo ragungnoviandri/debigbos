@@ -135,6 +135,7 @@ class BigBosAgent:
                         continue
                     self.memory.create_session(session_id)
                     self.memory.update_session_title(session_id, title or "Untitled")
+                    self.memory.set_session_source(session_id, "opencode")
                     if summary:
                         self.memory.save_session_summary(session_id, summary[:500])
                     imported += 1
@@ -167,6 +168,7 @@ class BigBosAgent:
                         continue
                     self.memory.create_session(session_id)
                     self.memory.update_session_title(session_id, title or "Untitled")
+                    self.memory.set_session_source(session_id, "hermes")
                     imported += 1
                 src.close()
             except Exception:
@@ -224,7 +226,7 @@ class BigBosAgent:
             # Load just last 5 messages for context preview
             msgs = self.memory.load_messages(sid, limit=5)
             for m in msgs:
-                session.messages.append(Message(**m))
+                session.messages.append(self._db_to_message(m))
 
     def start_session(self) -> Session:
         """Start a new conversation session."""
@@ -244,7 +246,7 @@ class BigBosAgent:
         if msgs:
             recent = msgs[-30:]  # Last 30 messages
             for m in recent:
-                session.messages.append(Message(**m))
+                session.messages.append(self._db_to_message(m))
             if len(msgs) > 30:
                 summary = self.memory.get_session_summary(session_id)
                 if summary:
@@ -343,6 +345,26 @@ class BigBosAgent:
         """Switch to a different session."""
         return self.sessions.switch_session(session_id)
 
+    def _db_to_message(self, m: dict) -> Message:
+        """Convert a DB message dict to a proper Message with ToolCall objects."""
+        tool_calls = []
+        for tc in m.get("tool_calls", []):
+            if isinstance(tc, dict):
+                tool_calls.append(ToolCall(
+                    id=tc.get("id", ""),
+                    name=tc.get("name", tc.get("function", {}).get("name", "")),
+                    arguments=tc.get("arguments", tc.get("function", {}).get("arguments", {})),
+                ))
+            else:
+                tool_calls.append(tc)
+        return Message(
+            role=m["role"],
+            content=m["content"],
+            tool_calls=tool_calls,
+            tool_call_id=m.get("tool_call_id"),
+            name=m.get("name"),
+        )
+
     # ——— Main agent loop ———
 
     async def chat(self, user_input: str, stream: bool = True, fresh: bool = False) -> str:
@@ -423,7 +445,9 @@ class BigBosAgent:
                 self._emit("reasoning", response.reasoning_content)
 
             if response.content:
-                self.memory.save_message(session.id, "assistant", response.content)
+                self.memory.save_message(session.id, "assistant", response.content,
+                                         tool_calls=[{"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                                                     for tc in response.tool_calls] if response.tool_calls else None)
                 self._emit("response", response.content)
                 final_response += response.content
 
@@ -507,7 +531,9 @@ class BigBosAgent:
 
             # —— Content ——
             if response.content:
-                self.memory.save_message(session.id, "assistant", response.content)
+                self.memory.save_message(session.id, "assistant", response.content,
+                                         tool_calls=[{"id": tc.id, "name": tc.name, "arguments": tc.arguments}
+                                                     for tc in response.tool_calls] if response.tool_calls else None)
                 yield response.content
             elif not response.reasoning_content:
                 # Neither content nor reasoning — model might have returned empty

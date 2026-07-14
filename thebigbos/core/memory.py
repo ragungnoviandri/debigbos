@@ -8,6 +8,7 @@ Architecture:
 
 import json
 import sqlite3
+import struct
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -127,6 +128,14 @@ class MemoryManager:
         )
         self.conn.commit()
 
+    def set_session_source(self, session_id: str, source: str) -> None:
+        """Set the source label for a session (e.g., 'opencode', 'hermes')."""
+        self.conn.execute(
+            "UPDATE sessions SET source = ?, updated_at = ? WHERE id = ?",
+            (source, time.time(), session_id),
+        )
+        self.conn.commit()
+
     def save_message(self, session_id: str, role: str, content: str,
                      tool_calls: list | None = None, tool_call_id: str | None = None,
                      name: str | None = None) -> None:
@@ -179,12 +188,12 @@ class MemoryManager:
     def list_sessions(self, limit: int = 20) -> list[dict[str, Any]]:
         """List recent sessions."""
         rows = self.conn.execute(
-            "SELECT id, title, summary, created_at, updated_at FROM sessions "
+            "SELECT id, title, summary, created_at, updated_at, source FROM sessions "
             "ORDER BY updated_at DESC LIMIT ?",
             (limit,),
         ).fetchall()
         return [
-            {"id": r[0], "title": r[1], "summary": r[2], "created_at": r[3], "updated_at": r[4]}
+            {"id": r[0], "title": r[1], "summary": r[2], "created_at": r[3], "updated_at": r[4], "source": r[5]}
             for r in rows
         ]
 
@@ -194,14 +203,10 @@ class MemoryManager:
         """Store a long-term memory with embedding."""
         embedding_blob = None
         if entry.embedding:
-            embedding_blob = bytes(
-                b"".join(struct.pack("f", v) for v in entry.embedding)
-            )
+            embedding_blob = b"".join(struct.pack("f", v) for v in entry.embedding)
         else:
             if emb := self.embed_text(entry.content):
-                embedding_blob = bytes(
-                    b"".join(struct.pack("f", v) for v in emb)
-                )
+                embedding_blob = b"".join(struct.pack("f", v) for v in emb)
 
         self.conn.execute(
             "INSERT OR REPLACE INTO memories (id, session_id, content, summary, tags, importance, timestamp, embedding) "
@@ -226,7 +231,6 @@ class MemoryManager:
         for row in rows:
             emb_blob = row[7]
             if emb_blob and len(emb_blob) % 4 == 0:
-                import struct
                 n = len(emb_blob) // 4
                 emb = list(struct.unpack(f"{n}f", emb_blob))
                 similarity = self._cosine_sim(query_embedding, emb)

@@ -252,6 +252,21 @@ async def run_install(workspace: Path) -> None:
     print("  set ANTHROPIC_API_KEY=sk-ant-...")
 
 
+def _save_to_env(var_name: str, value: str) -> None:
+    """Save a value to a persistent environment variable."""
+    import platform
+    system = platform.system()
+    if system == "Windows":
+        import subprocess
+        subprocess.run(f'setx {var_name} "{value}"', capture_output=True, shell=True)
+    else:
+        profile = os.path.expanduser("~/.profile")
+        print(f"\n  To make it permanent, add this line to {profile}:")
+        print(f"  export {var_name}='{value}'")
+        print(f"  Then run: source {profile}")
+    os.environ[var_name] = value
+
+
 PROVIDER_CATALOG = {
     "openai": {
         "base_url": "https://api.openai.com/v1",
@@ -386,31 +401,44 @@ async def run_setup(args: argparse.Namespace) -> None:
     print()
     if info["env_var"]:
         env_val = os.environ.get(info["env_var"], "")
-        prov_cfg = config.get("providers", {}).get(provider, {})
-        existing_key = prov_cfg.get("api_key", "")
+        existing_key = prov_cfg.get("api_key", "") if (prov_cfg := config.get("providers", {}).get(provider, {})) else ""
 
-        if existing_key and not existing_key.startswith("${"):
-            print(f"API key already set for {provider}")
-            if input("Change it? (y/n) [n]: ").strip().lower() == "y":
-                existing_key = ""
-        elif env_val:
-            print(f"API key found in ${info['env_var']} (will use env var)")
+        # Check if key is hardcoded (starts with sk- or similar, not ${...})
+        is_hardcoded = existing_key and not existing_key.startswith("${")
+        is_env_set = bool(env_val)
+        is_env_ref = existing_key.startswith("${")
+
+        if is_hardcoded:
+            print(f"API key is hardcoded in config file (not safe for git).")
+            change = input("Store as env var instead? (y/n) [y]: ").strip().lower()
+            if change != "n":
+                _save_to_env(info["env_var"], existing_key)
+                config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
+                print(f"Saved to env var ${info['env_var']}, config updated to reference it.")
+                existing_key = f"${{{info['env_var']}}}"
+        elif is_env_set:
+            print(f"API key found in ${info['env_var']} (env var)")
+        elif is_env_ref:
+            print(f"Config references ${info['env_var']} but env var is NOT set.")
+            key_input = input(f"Enter API key for {provider} (or press Enter to skip): ").strip()
+            if key_input:
+                _save_to_env(info["env_var"], key_input)
+                print(f"Saved to env var ${info['env_var']}.")
         else:
             print(f"No API key found for {provider}.")
             print(f"You can either:")
-            print(f"  1. Set env var: set {info['env_var']}=<your-key>")
-            print(f"  2. Enter key now (saves to config file)")
+            print(f"  1. Set env var (recommended): set {info['env_var']}=<your-key>")
+            print(f"  2. Enter key now (saves to env var automatically)")
             print()
-
-        if not env_val and (not existing_key or existing_key.startswith("${")):
             key_input = input(f"Enter API key for {provider} (or press Enter to skip): ").strip()
             if key_input:
+                _save_to_env(info["env_var"], key_input)
                 if "providers" not in config:
                     config["providers"] = {}
                 if provider not in config["providers"]:
                     config["providers"][provider] = {}
-                config["providers"][provider]["api_key"] = key_input
-                print("API key saved.")
+                config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
+                print(f"Saved to env var ${info['env_var']}.")
     else:
         # Ollama - no key needed
         pass

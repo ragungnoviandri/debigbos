@@ -38,6 +38,7 @@ from textual.widgets import (
     Input,
     Label,
     RichLog,
+    Select,
     Static,
     TextArea,
 )
@@ -120,7 +121,7 @@ class SidebarWidget(Static):
 
     def render(self) -> str:
         lines = []
-        lines.append(" Session Info")
+        lines.append("[bold cyan] Info[/bold cyan]")
         lines.append(" ─────────────")
         lines.append("")
         if self.error_msg:
@@ -129,11 +130,8 @@ class SidebarWidget(Static):
         if self.thinking:
             lines.append(" [bold yellow]...thinking...[/bold yellow]")
             lines.append("")
-        if self.session_id:
-            lines.append(f" Session: {self.session_id[:12]}")
+        if self.session_title and self.session_title != "Untitled":
             lines.append(f" Title: {self.session_title[:30]}")
-        else:
-            lines.append(" Session: -")
         lines.append("")
         lines.append(f" Mode: [bold]{self.mode}[/bold]")
         lines.append(f" Model: {self.model[:28]}")
@@ -236,6 +234,8 @@ class HomeScreen(Screen[Any]):
 
             # Sidebar
             with VerticalScroll(id="sidebar"):
+                yield Label("[bold cyan]Sessions[/bold cyan]", id="sidebar-session-label")
+                yield Select([], id="session-select", prompt="Select session...")
                 yield SidebarWidget(id="sidebar-info")
 
         # Prompt area
@@ -247,6 +247,59 @@ class HomeScreen(Screen[Any]):
             yield Button("Send", variant="primary", id="send-btn")
 
         yield StatusBar(id="status-bar")
+
+    def _populate_session_select(self) -> None:
+        """Populate the session dropdown with available sessions."""
+        select = self.query_one("#session-select", Select)
+        if not self.agent:
+            return
+
+        self.agent._ensure_sessions_imported()
+        sessions = self.agent.memory.list_sessions(limit=50)
+
+        options = []
+        active_session = self.agent.sessions.active
+        active_id = active_session.id if active_session else None
+
+        for s in sessions:
+            title = (s.get("title") or "Untitled")[:40]
+            src = s.get("source", "")
+            label = f"{title} [{s['id'][:8]}]"
+            if src:
+                label += f" ({src})"
+            if s["id"] == active_id:
+                label = f"► {label}"
+            options.append((label, s["id"]))
+
+        if not options:
+            options = [("No sessions", "")]
+
+        select.set_options(options)
+        # Set current value to active session
+        if active_id:
+            for label, val in options:
+                if val == active_id:
+                    select.value = val
+                    break
+
+    @on(Select.Changed, "#session-select")
+    def _on_session_select_changed(self, event: Select.Changed) -> None:
+        """Handle session selection from dropdown."""
+        if not event.value or not self.agent:
+            return
+        # Don't reload if it's already the active session
+        active = self.agent.sessions.active
+        if active and active.id == event.value:
+            return
+
+        if self.agent.continue_session(event.value):
+            self._update_sidebar()
+            self._load_history()
+            self._populate_session_select()
+            self.notify(f"Switched to session: {event.value[:12]}")
+        else:
+            self.notify("Failed to load session", severity="error")
+            self._populate_session_select()  # Reset selection
 
     async def on_mount(self) -> None:
         """Called when screen is mounted. Initialize agent."""
@@ -299,6 +352,7 @@ class HomeScreen(Screen[Any]):
                 greeting = self.agent.soul.personalize_greeting()
                 response_area.write(f"\n[bold cyan]{greeting}[/bold cyan]\n")
 
+            self._populate_session_select()
             self._update_sidebar()
             input_widget.focus()
 
@@ -353,9 +407,11 @@ class HomeScreen(Screen[Any]):
 
         elif event_type == "session_started":
             self._update_sidebar()
+            self._populate_session_select()
 
         elif event_type == "session_loaded":
             self._update_sidebar()
+            self._populate_session_select()
 
         elif event_type == "compacted":
             self.notify("Context compacted", title="Memory")
@@ -483,12 +539,15 @@ class HomeScreen(Screen[Any]):
             sessions = self.agent.memory.list_sessions(limit=30)
             if sessions:
                 self._show_session_picker_inline(sessions)
+            self._populate_session_select()
             return
         if session_id == "__deleted__":
+            self._populate_session_select()
             return
         if session_id:
             if self.agent.continue_session(session_id):
                 self._update_sidebar()
+                self._populate_session_select()
                 # Show history messages
                 self._load_history()
                 self.notify(f"Session loaded")
@@ -498,6 +557,7 @@ class HomeScreen(Screen[Any]):
             if not self.agent.sessions.active:
                 self.agent.start_session()
                 self._update_sidebar()
+                self._populate_session_select()
 
     def _load_history(self) -> None:
         """Display loaded session history in response area."""
@@ -602,7 +662,8 @@ class HomeScreen(Screen[Any]):
 
         elif cmd == "/copy":
             self._copy_last_response()
-            return
+
+        elif cmd.startswith("/model "):
             if self.agent:
                 self.agent.config.active_model = cmd[7:].strip()
                 self.notify(f"Model: {self.agent.config.active_model}")

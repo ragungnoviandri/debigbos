@@ -88,7 +88,7 @@ DEFAULT_CONFIG = Config(
             default_model="llama3.1",
         ),
         "opencode-go": ProviderConfig(
-            api_key="${OPENCODE_API_KEY}",
+            api_key="${OPENCODE_GO_API_KEY}",
             base_url="https://api.opencode.ai/v1",
             models=["deepseek-v4-pro", "deepseek-v3", "qwen-plus", "qwen-max", "kimi-k2", "glm-4", "minimax-m1", "mimo-v2"],
             default_model="deepseek-v4-pro",
