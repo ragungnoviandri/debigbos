@@ -718,19 +718,26 @@ class BigBosAgent:
     # ——— Context compaction ———
 
     def _should_compact(self) -> bool:
-        """Check if context needs compaction."""
+        """Check if context needs compaction based on actual model context window."""
         session = self.sessions.active
         if not session:
             return False
         provider = self.providers.active
         if not provider:
             return False
+
         token_count = provider.count_tokens(session.to_llm_format())
-        # Rough threshold: 80% of context window
-        return token_count > 100000 * self.config.memory.compaction_threshold
+        context_window = provider.get_context_window(self.config.active_model)
+        threshold = int(context_window * self.config.memory.compaction_threshold)
+
+        # Also trigger if messages exceed max_short_term
+        if len(session.messages) > self.config.memory.max_short_term:
+            return True
+
+        return token_count > threshold
 
     async def _compact_context(self) -> None:
-        """Compact the conversation context by summarizing older messages."""
+        """Compact the conversation context: keep system prompt + last N, summarize rest."""
         session = self.sessions.active
         if not session or len(session.messages) < 10:
             return
@@ -739,38 +746,47 @@ class BigBosAgent:
         if not provider:
             return
 
-        # Keep last 10 messages, summarize the rest
-        to_summarize = session.messages[:-10]
-        recent = session.messages[-10:]
+        # Preserve system message(s) at the top
+        system_msgs = [m for m in session.messages if m.role == "system"]
+        non_system = [m for m in session.messages if m.role != "system"]
 
+        keep = min(10, len(non_system) - 4)  # keep last 4-10 non-system messages
+        to_summarize = non_system[:-keep]
+        recent = non_system[-keep:]
+
+        if not to_summarize:
+            return
+
+        # Build summary input — include user + assistant only
         summary_input = "\n".join(
             f"[{m.role}]: {m.content[:300]}" for m in to_summarize
+            if m.role in ("user", "assistant")
         )
 
         summary_msg = Message(
             role="user",
-            content=f"Summarize this conversation concisely:\n\n{summary_input}",
+            content=f"Summarize this conversation concisely, preserving key decisions, code changes, and learnings:\n\n{summary_input}",
         )
 
         try:
             response = await provider.chat(
                 [summary_msg], [],
-                ModelOptions(model=self.config.small_model, max_tokens=500),
+                ModelOptions(model=self.config.small_model, max_tokens=800),
             )
             self.state.compacted_summary = response.content
             self.state.is_compacted = True
 
-            # Replace old messages with summary
+            # Rebuild: system + summary + recent
             compacted = Message(
                 role="system",
-                content=f"[Context compacted]\nPrevious conversation summary:\n{response.content}",
+                content=f"[Context compacted — {len(to_summarize)} messages summarized]\n\n{response.content}",
             )
-            session.messages = [compacted] + recent
+            session.messages = system_msgs + [compacted] + recent
 
             self.memory.save_session_summary(session.id, response.content)
-            self._emit("compacted", "")
-        except Exception:
-            pass
+            self._emit("compacted", f"Compacted {len(to_summarize)} → {len(response.content.split())} words")
+        except Exception as e:
+            self._emit("compacted", f"Compaction failed: {e}")
 
     async def _auto_summarize(self, session: Session) -> None:
         """Auto-generate medium-term summary for the session."""

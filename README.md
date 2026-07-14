@@ -117,6 +117,7 @@ thebigbos run "bikin hello world"
 | `/learn-suggest` | Auto-detect teachable moment |
 | `/rename <title>` | Rename current session |
 | `/clear` | Clear screen |
+| `/compact` | Compact long conversation context |
 | `/help` | Show help |
 
 ## Configuration

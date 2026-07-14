@@ -81,3 +81,60 @@ class ModelProvider(ABC):
     def count_tokens(self, messages: list[Message]) -> int:
         """Estimate token count for a list of messages."""
         return sum(len(m.content.split()) * 1.3 for m in messages)
+
+    def get_context_window(self, model: str) -> int:
+        """Return the context window size (in tokens) for a given model.
+        
+        Subclasses can override this with provider-specific values.
+        """
+        return _MODEL_CONTEXT_WINDOWS.get(model, 128000)
+
+
+# ——— Known model context windows (in tokens) ———
+_MODEL_CONTEXT_WINDOWS: dict[str, int] = {
+    # OpenAI
+    "gpt-4o": 128000,
+    "gpt-4o-mini": 128000,
+    "gpt-4-turbo": 128000,
+    "o3-mini": 200000,
+    "o1": 200000,
+    "o4-mini": 200000,
+    # Anthropic
+    "claude-sonnet-4-20250514": 200000,
+    "claude-3-5-sonnet-20241022": 200000,
+    "claude-3-opus-20240229": 200000,
+    # DeepSeek
+    "deepseek-v4-pro": 128000,
+    "deepseek-v4-flash": 128000,
+    "deepseek-v3": 128000,
+    "deepseek-v3.2": 128000,
+    "deepseek-r1": 128000,
+    "deepseek-r1-distill-llama-70b": 128000,
+    # Qwen
+    "qwen-plus": 128000,
+    "qwen-max": 128000,
+    "qwen3.5-397b": 128000,
+    "qwen2.5": 128000,
+    # Kimi
+    "kimi-k2": 128000,
+    "kimi-k2.6": 128000,
+    # GLM
+    "glm-4": 128000,
+    "glm5": 128000,
+    # MiniMax
+    "minimax-m1": 128000,
+    "minimax-m2.5": 128000,
+    "minimax-m2.7": 128000,
+    "minimax-m3": 128000,
+    # Mistral
+    "mistral-large-3": 128000,
+    "mimo-v2": 128000,
+    # Groq
+    "llama-3.1-70b": 128000,
+    "mixtral-8x7b": 32000,
+    "gemma2-9b": 8192,
+    # Ollama local
+    "llama3.1": 128000,
+    "codellama": 16384,
+    "phi3": 4096,
+}

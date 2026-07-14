@@ -949,7 +949,7 @@ class HomeScreen(Screen[Any]):
             self._populate_session_select()
 
         elif event_type == "compacted":
-            self.notify("Context compacted", title="Memory")
+            self.notify(f"Context compacted — {data}" if data else "Context compacted", title="Memory")
 
     def _show_session_picker_inline(self, sessions: list[dict]) -> None:
         """Show interactive session picker with arrow keys."""
@@ -1422,6 +1422,20 @@ class HomeScreen(Screen[Any]):
         elif cmd == "/fix":
             await self._fix_session()
 
+        elif cmd == "/compact":
+            if self.agent and self.agent.sessions.active:
+                response_area.write("[bold yellow]Compacting context...[/bold yellow]\n")
+                await self.agent._compact_context()
+                token_count = self.agent.providers.active.count_tokens(
+                    self.agent.sessions.active.to_llm_format()
+                ) if self.agent.providers.active else 0
+                msg_count = len(self.agent.sessions.active.messages)
+                response_area.write(
+                    f"[green]Context compacted![/green] {msg_count} messages, ~{token_count} tokens\n"
+                )
+            else:
+                response_area.write("[yellow]No active session to compact.[/yellow]\n")
+
         elif cmd == "/copy":
             self._copy_last_response()
 
@@ -1569,6 +1583,7 @@ class HomeScreen(Screen[Any]):
 | `/skills` | List available skills |
 | `/model <id>` | Switch active model |
 | `/fix` | Repair corrupted session (after crash) |
+| `/compact` | Manually compact long conversations |
 | `/copy` | Copy last response to clipboard |
 | `/remember <key>:<value>` | Store a persistent fact |
 | `/recall [query]` | Search memories (or show all) |
