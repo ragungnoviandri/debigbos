@@ -29,7 +29,7 @@ AI-powered CLI assistant with persistent memory, soul, skills, and multi-model s
 
 ## Installation
 
-### One-Line Install (Recommended)
+### One-Liner (Recommended)
 
 ```bash
 # Windows
@@ -39,14 +39,9 @@ powershell -c "irm https://raw.githubusercontent.com/ragungnoviandri/thebigbos/m
 curl -fsSL https://raw.githubusercontent.com/ragungnoviandri/thebigbos/main/install.sh | bash
 ```
 
-The installer:
-- Clones repo to `~/.local/share/thebigbos/repo/`
-- Bundles Python 3.11 (Windows) or uses system Python
-- Creates virtual environment + installs dependencies
-- Adds `thebigbos` to your PATH
-- Creates default config at `~/.config/thebigbos/`
+The installer handles everything: clone repo, setup Python venv, install dependencies, add to PATH.
 
-### Dev Install (Editable)
+### For Developers (Editable)
 
 ```bash
 git clone https://github.com/ragungnoviandri/thebigbos
@@ -54,6 +49,8 @@ cd thebigbos
 pip install -e .
 thebigbos setup
 ```
+
+Editable mode — code changes take effect immediately. No need to reinstall.
 
 ### Quick Start
 
