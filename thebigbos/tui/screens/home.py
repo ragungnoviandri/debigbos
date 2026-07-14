@@ -50,18 +50,6 @@ class ChatInput(Input):
 
     BINDINGS = [("ctrl+j", "insert_newline", "New Line")]
 
-    class Submitted(Message):
-        control = None
-        def __init__(self, text: str) -> None:
-            super().__init__()
-            self.text = text
-
-    def action_submit(self) -> None:
-        text = self.value.strip()
-        if text:
-            self.post_message(self.Submitted(text))
-            self.value = ""
-
     def action_insert_newline(self) -> None:
         self.value += "\n"
         self.cursor_position = len(self.value)
@@ -578,16 +566,17 @@ class HomeScreen(Screen[Any]):
                 response_area.write(f"\n[dim]Tool: {msg.content[:200]}[/dim]")
 
     @on(Button.Pressed, "#send-btn")
-    @on(ChatInput.Submitted, "#prompt-input")
-    async def _on_send(self, event: Button.Pressed | ChatInput.Submitted) -> None:
+    @on(Input.Submitted, "#prompt-input")
+    async def _on_send(self, event: Button.Pressed | Input.Submitted) -> None:
         """Handle send action."""
         input_widget = self.query_one("#prompt-input", ChatInput)
 
-        if isinstance(event, ChatInput.Submitted):
-            user_input = event.text.strip()
+        if isinstance(event, Input.Submitted):
+            user_input = event.value.strip()
         else:
             user_input = input_widget.value.strip()
             if user_input:
+                input_widget.value = ""
                 input_widget.value = ""
 
         if not user_input:
