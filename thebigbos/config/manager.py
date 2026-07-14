@@ -171,12 +171,18 @@ class ConfigManager:
         return config
 
     def _deep_merge(self, base: dict, override: dict) -> None:
-        """Recursively merge override into base. Skips empty values."""
+        """Recursively merge override into base. Resolves env vars and skips empty."""
         for key, value in override.items():
             if key in base and isinstance(base[key], dict) and isinstance(value, dict):
                 self._deep_merge(base[key], value)
+            elif isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                # Env var — resolve it; if empty, don't override existing value
+                resolved = os.environ.get(value[2:-1], "")
+                if resolved:
+                    base[key] = resolved
+                # If env var not set, keep the base value (e.g., from global config)
             elif value == "" or value is None:
-                continue  # Don't override with empty
+                continue
             else:
                 base[key] = value
 
