@@ -1,6 +1,6 @@
 # TheBigBos
 
-AI-powered CLI assistant with persistent memory, soul, skills, and multi-model support. Built with Python + Textual TUI — inspired by OpenCode and Hermes.
+AI-powered CLI assistant with persistent memory, soul, skills, git integration, and multi-model support. Built with Python + Textual TUI — inspired by OpenCode and Hermes.
 
 ```
    _____ _         ____  _       ____
@@ -15,13 +15,15 @@ AI-powered CLI assistant with persistent memory, soul, skills, and multi-model s
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Model** | OpenAI, Anthropic, OpenCode Go, OpenRouter, Groq, Ollama — 6+ providers |
+| **Multi-Model** | OpenAI, Anthropic, OpenCode (Go + Zen), DeepSeek, OpenRouter, Groq, Together AI, Ollama + Custom |
+| **Add Provider** | One-click preset (Anthropic, Groq, DeepSeek, Together, OpenRouter, OpenCode Zen, Ollama) or custom endpoint + API key |
+| **Git Integration** | Built-in sidebar: branch, status, diff viewer, commit with custom message dialog |
 | **Persistent Memory** | 3-layer: short-term (context), medium-term (SQLite summaries), long-term (embeddings) |
 | **Soul/Personality** | Configurable persona, tone, greeting, constraints |
 | **Skills System** | Markdown-based SKILL.md lazy-loading |
 | **Subagents** | Built-in explore, planner, reviewer agents with isolated context |
-| **Session Management** | Persistent sessions, auto-import from OpenCode & Hermes |
-| **Textual TUI** | Rich terminal UI with sidebar, status bar, session picker |
+| **Session Management** | Persistent sessions, rename, auto-import from OpenCode & Hermes |
+| **Textual TUI** | Rich terminal UI with multi-line chat input, sidebar, status bar |
 | **Tools** | bash, read, write, edit, glob, grep, webfetch, todowrite + custom tools |
 | **Context Compaction** | Auto-summarize when approaching token limit |
 | **Reasoning Support** | DeepSeek V4, o1/o3, Claude extended thinking |
@@ -88,20 +90,32 @@ thebigbos run "bikin hello world"
 | `thebigbos update --check` | Check for updates only |
 | `thebigbos uninstall` | Remove TheBigBos (keeps config) |
 
-### TUI Commands
+### TUI Keybindings
 
-| Key / Command | Description |
-|---------------|-------------|
-| `Ctrl+S` `/sessions` | Session picker (arrows, Enter, D=delete, R=rename) |
-| `Ctrl+M` `/models` | List available models |
+| Key | Action |
+|-----|--------|
+| `Ctrl + S` | Session picker |
+| `Ctrl + R` | Rename session |
+| `Ctrl + M` | List models |
+| `Ctrl + H` | Show help |
+| `Ctrl + C` | Copy selected text |
+| `Ctrl + Q` | Quit |
+| `Esc` | Focus chat input |
+| `Enter` | Send message |
+| `Shift + Enter` | Newline in chat |
+
+### Chat Commands
+
+| Command | Description |
+|---------|-------------|
 | `/model <id>` | Switch active model |
+| `/provider <name>` | Switch active provider |
 | `/agent <name> <task>` | Spawn subagent |
 | `/remember key:value` | Store persistent fact |
 | `/recall <query>` | Search memories |
 | `/rename <title>` | Rename current session |
 | `/clear` | Clear screen |
 | `/help` | Show help |
-| `Ctrl+Q` `/exit` | Quit |
 
 ## Configuration
 
@@ -141,11 +155,25 @@ Config files are merged from multiple locations (highest to lowest priority):
 | Provider | Models | Setup |
 |----------|--------|-------|
 | **OpenCode Go** | deepseek-v4-pro, qwen3.5, kimi-k2, glm5, minimax-m3 | `OPENCODE_GO_API_KEY` ($10/mo) |
+| **OpenCode Zen** | deepseek-v4-pro, deepseek-v4-flash, qwen-plus, qwen-max | `OPENCODE_ZEN_API_KEY` |
 | **OpenAI** | gpt-4o, o3-mini, o1 | `OPENAI_API_KEY` |
 | **Anthropic** | claude-sonnet-4, claude-opus | `ANTHROPIC_API_KEY` |
+| **DeepSeek** | deepseek-chat, deepseek-coder | `DEEPSEEK_API_KEY` |
 | **OpenRouter** | All models via router | `OPENROUTER_API_KEY` |
 | **Groq** | llama-3.1, mixtral, gemma | `GROQ_API_KEY` |
+| **Together AI** | Llama 3.1 405B, Mixtral 8x22B | `TOGETHER_API_KEY` |
 | **Ollama** | llama3.1, qwen2.5, deepseek-r1 | Local, free |
+
+### Adding a Custom Provider
+
+Click the **"+"** button next to the provider dropdown in the sidebar, or use the preset picker:
+
+1. Pick a preset (Anthropic, Groq, DeepSeek, Together, OpenRouter, OpenCode Zen, Ollama) — fields auto-fill
+2. Or choose **Custom...** — enter any OpenAI-compatible endpoint
+3. API key can be literal or `${ENV_VAR}` reference
+4. Click **"Add Provider"** — immediately available
+
+Any unknown provider falls back to OpenAI-compatible protocol (supports any `/v1/chat/completions` endpoint).
 
 ## Skills
 
@@ -214,14 +242,17 @@ Usage:
 TheBigBos/
 ├── thebigbos/                  # Main package
 │   ├── main.py                 # CLI entry point
-│   ├── config/manager.py       # Config loader
+│   ├── config/                 # Config & auth
+│   │   ├── manager.py          # ConfigLoader (multi-source merge)
+│   │   └── auth.py             # API key storage (auth.json)
 │   ├── models/                 # Multi-model providers
-│   │   ├── openai_provider.py
+│   │   ├── registry.py         # ProviderRegistry (runtime registration)
+│   │   ├── openai_provider.py  # OpenAI + OpenAI-compatible
 │   │   ├── anthropic_provider.py
 │   │   ├── opencode_provider.py
 │   │   └── ollama_provider.py
 │   ├── core/                   # Brain & memory
-│   │   ├── agent.py            # Main agent loop
+│   │   ├── agent.py            # Main agent loop + subagent spawning
 │   │   ├── soul.py             # Personality engine
 │   │   ├── memory.py           # SQLite persistent memory
 │   │   ├── skills.py           # SKILL.md loader
@@ -229,11 +260,12 @@ TheBigBos/
 │   ├── tools/                  # Built-in tools
 │   │   ├── bash_tool.py
 │   │   ├── file_tools.py       # read, write, edit, glob, grep
+│   │   ├── git_utils.py        # Git status, diff, commit helpers
 │   │   ├── web_tool.py
 │   │   └── todo_tool.py
 │   └── tui/                    # Textual terminal UI
 │       ├── app.py              # BigBosApp
-│       ├── screens/home.py     # Chat screen + sidebar + status bar
+│       ├── screens/home.py     # Chat + sidebar + commit dialog + add-provider dialog
 │       ├── screens/welcome.py  # Welcome/splash screen
 │       ├── dialogs.py          # Modal dialogs
 │       ├── theme.py            # Theme management
@@ -257,16 +289,16 @@ User Input
 ┌─────────────┐    ┌──────────────┐    ┌─────────────┐
 │  Textual     │───▶│  BigBosAgent │───▶│  Provider    │
 │  TUI         │    │              │    │  (OpenAI,    │
-│  - Chat      │    │  - System    │    │   Anthropic, │
-│  - Sidebar   │    │    Prompt    │    │   OpenCode,  │
-│  - StatusBar │    │  - Memory    │    │   Ollama)    │
-│  - Tool Log  │    │  - Skills    │    └──────┬───────┘
-└──────────────┘    │  - Tools     │           │
-                    │  - Session   │    ┌──────▼───────┐
-                    │  - Subagents │    │  Model API   │
-                    └──────┬───────┘    │  Response    │
-                           │            └──────────────┘
-                    ┌──────▼───────┐
+│  - ChatInput │    │  - System    │    │   Anthropic, │
+│    (TextArea)│    │    Prompt    │    │   OpenCode,  │
+│  - Sidebar   │    │  - Memory    │    │   Ollama,    │
+│    (Git)+    │    │  - Skills    │    │   Custom...) │
+│  - StatusBar │    │  - Tools     │    └──────┬───────┘
+│  - Tool Log  │    │  - Session   │           │
+└──────────────┘    │  - Subagents │    ┌──────▼───────┐
+                    └──────┬───────┘    │  Model API   │
+                           │            │  Response    │
+                    ┌──────▼───────┐    └──────────────┘
                     │  Memory DB   │
                     │  (SQLite)    │
                     │  - Sessions  │
