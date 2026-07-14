@@ -40,19 +40,41 @@ from textual.widgets import (
     RichLog,
     Select,
     Static,
+    TextArea,
 )
 
 from ..keymap import KeymapRegistry
 
 
-class ChatInput(Input):
-    """Chat input. Enter=send, Ctrl+J=newline."""
+class ChatInput(TextArea):
+    """Multi-line chat input. Enter=send, Ctrl+J=newline, max 3 rows."""
 
-    BINDINGS = [("ctrl+j", "insert_newline", "New Line")]
+    BINDINGS = [
+        ("ctrl+j", "insert_newline", "New Line"),
+    ]
+
+    def on_mount(self) -> None:
+        self.styles.max_height = 6
+        self.border_title = "Enter=Send  Ctrl+J=newline"
+
+    def _on_key(self, event) -> None:
+        if event.key == "enter":
+            event.stop()
+            event.prevent_default()
+            text = self.text.strip()
+            if text:
+                self.clear()
+                # Call screen handler directly
+                screen = self.screen
+                if hasattr(screen, '_handle_chat_input'):
+                    import asyncio
+                    asyncio.create_task(screen._handle_chat_input(text))
+        else:
+            super()._on_key(event)
 
     def action_insert_newline(self) -> None:
-        self.value += "\n"
-        self.cursor_position = len(self.value)
+        """Insert newline at cursor."""
+        self.insert("\n")
 
 
 class StatusBar(Static):
@@ -317,7 +339,7 @@ class HomeScreen(Screen[Any]):
             except asyncio.TimeoutError:
                 response_area.write("\n[yellow]Init timed out. Agent may be unavailable.[/yellow]")
                 self._initialized = True
-                input_widget.value = ""
+                input_widget.clear()
                 return
             except Exception as e:
                 response_area.write(f"\n[red]Init error: {e}[/red]")
@@ -565,41 +587,32 @@ class HomeScreen(Screen[Any]):
             elif msg.role == "tool":
                 response_area.write(f"\n[dim]Tool: {msg.content[:200]}[/dim]")
 
-    @on(Button.Pressed, "#send-btn")
-    @on(Input.Submitted, "#prompt-input")
-    async def _on_send(self, event: Button.Pressed | Input.Submitted) -> None:
-        """Handle send action."""
-        input_widget = self.query_one("#prompt-input", ChatInput)
-
-        if isinstance(event, Input.Submitted):
-            user_input = event.value.strip()
-            input_widget.value = ""  # Clear explicitly
-        else:
-            user_input = input_widget.value.strip()
-            if user_input:
-                input_widget.value = ""
-
-        if not user_input:
-            return
-
-        # Handle slash commands locally
-        if user_input.startswith("/"):
-            await self._handle_command(user_input)
-            return
-
-        # Show user message in log
+    async def _handle_chat_input(self, text: str) -> None:
+        """Process user input from chat box."""
         response_area = self.query_one("#response-area", ResponseArea)
-        response_area.write(f"\n[bold yellow]You:[/bold yellow] {user_input}\n")
 
-        # Run agent in background worker so UI stays responsive
+        if text.startswith("/"):
+            await self._handle_command(text)
+            return
+
+        response_area.write(f"\n[bold yellow]You:[/bold yellow] {text}\n")
+
         if self.agent:
             self._chat_start = time.time()
             self._thinking = True
             self._response = ""
             self._tool_log = []
             self._update_sidebar()
-            self._chat_task = asyncio.create_task(self._run_chat(user_input))
+            self._chat_task = asyncio.create_task(self._run_chat(text))
 
+    @on(Button.Pressed, "#send-btn")
+    async def _on_send_btn(self) -> None:
+        """Send button clicked."""
+        input_widget = self.query_one("#prompt-input", ChatInput)
+        text = input_widget.text.strip()
+        if text:
+            input_widget.clear()
+            await self._handle_chat_input(text)
     async def _run_chat(self, user_input: str) -> None:
         """Run chat with streaming response — text appears in real-time."""
         response_area = self.query_one("#response-area", ResponseArea)
