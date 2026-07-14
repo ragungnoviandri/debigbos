@@ -124,6 +124,40 @@ class SkillManager:
             for s in self._skills.values()
         ]
 
+    def create_skill(self, name: str, description: str, content: str,
+                     author: str = "TheBigBos", tags: list[str] | None = None) -> Skill | None:
+        """Create a new skill and persist it as SKILL.md. Returns the Skill or None on failure."""
+        import time
+
+        if not self.search_paths:
+            return None
+
+        out_dir = self.search_paths[0] / name
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Build frontmatter
+        frontmatter_lines = [
+            f"name: {name}",
+            f"description: \"{description}\"",
+            f"version: 1.0.0",
+            f"author: {author}",
+            "license: MIT",
+        ]
+        if tags:
+            frontmatter_lines.append(f"metadata:")
+            frontmatter_lines.append(f"  tags: {tags}")
+
+        fm_block = "\n".join(frontmatter_lines)
+        full_content = f"---\n{fm_block}\n---\n\n{content.strip()}\n"
+
+        out_file = out_dir / "SKILL.md"
+        out_file.write_text(full_content, encoding="utf-8")
+
+        # Parse & register
+        skill = self._parse_skill(name, out_file)
+        self._skills[skill.name] = skill
+        return skill
+
     def get_skill_prompt(self) -> str:
         """Build the skills section of the system prompt."""
         skills = self.list_skills()

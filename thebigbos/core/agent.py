@@ -886,6 +886,168 @@ class BigBosAgent:
             for e in entries
         ]
 
+    # ——— Skill learning ———
+
+    async def learn_skill(self, topic: str, context: str = "", tags: str = "") -> str:
+        """Auto-generate & persist a SKILL.md from conversation context.
+
+        Uses the LLM to extract knowledge from recent messages and format it
+        as a proper skill file with frontmatter.
+        """
+        session = self.sessions.active
+        if not session or not session.messages:
+            return "No conversation context to learn from."
+
+        provider = self.providers.active
+        if not provider:
+            return "No active provider. Set one in config."
+
+        # Gather context — the last conversation is our "lesson"
+        if context:
+            lesson_text = context
+        else:
+            recent = [m for m in session.messages[-12:] if m.role in ("user", "assistant") and m.content]
+            lesson_text = "\n\n".join(
+                f"**{m.role}**: {m.content[:1000]}" for m in recent
+            )
+
+        tag_hint = f"\nUse these tags in metadata: [{tags}]." if tags else ""
+
+        prompt = f"""You just had this conversation:
+
+{lesson_text}
+
+Based on what was discussed, create a SKILL.md file that captures the knowledge
+the AI assistant demonstrated or learned. The skill should be reusable — when
+loaded later, it should help the assistant perform a similar task.
+
+Extract the core technique, workflow, or knowledge into a well-structured
+Markdown skill file with YAML frontmatter.
+
+---FORMAT---
+---
+name: {topic}
+description: "Brief one-line summary"
+version: 1.0.0
+author: TheBigBos
+license: MIT
+metadata:
+  tags: [tag1, tag2]
+---
+
+# Title
+
+Detailed step-by-step instructions. Include:
+- When to use this skill
+- Prerequisites
+- Step-by-step process
+- Common pitfalls or tips
+- Example usage
+---END---
+
+{tag_hint}
+
+Return ONLY the skill content, no extra commentary."""
+
+        try:
+            response = await provider.chat(
+                [Message(role="user", content=prompt)], [],
+                ModelOptions(model=self.config.small_model, max_tokens=4000),
+            )
+            raw = response.content.strip()
+
+            # Strip any markdown code fences the LLM might wrap
+            if raw.startswith("```"):
+                # Find first newline after opening fence
+                fence_end = raw.find("\n")
+                raw = raw[fence_end + 1:]
+                if raw.endswith("```"):
+                    raw = raw[:-3]
+
+            raw = raw.strip()
+
+            # Parse frontmatter to extract name & description
+            import re
+            name = topic
+            description = ""
+            fm_match = re.match(r'^---\s*\n(.*?)\n---', raw, re.DOTALL)
+            if fm_match:
+                for line in fm_match.group(1).split("\n"):
+                    if ":" in line:
+                        k, _, v = line.partition(":")
+                        k = k.strip().lower()
+                        v = v.strip().strip('"').strip("'")
+                        if k == "name":
+                            name = v
+                        elif k == "description":
+                            description = v
+
+            # Extract tags from frontmatter metadata
+            tag_list = None
+            if fm_match:
+                tag_match = re.search(r'tags:\s*\[(.+?)\]', fm_match.group(1))
+                if tag_match:
+                    tag_list = [t.strip().strip('"').strip("'") for t in tag_match.group(1).split(",")]
+
+            skill = self.skills.create_skill(name, description, raw, author="TheBigBos", tags=tag_list)
+            if skill:
+                self._emit("skill_learned", json.dumps({"name": skill.name, "description": skill.description}))
+                return f"[green]Skill '{skill.name}' saved![/green]\n  📁 {skill.path}\n  📝 {skill.description}"
+            else:
+                return "[yellow]Failed to save skill.[/yellow]"
+
+        except Exception as e:
+            return f"[red]Error generating skill: {e}[/red]"
+
+    async def suggest_skill(self) -> str | None:
+        """Analyze conversation — if there's a teachable moment, return a skill suggestion.
+        Returns None if nothing worth learning.
+        """
+        session = self.sessions.active
+        if not session or len(session.messages) < 6:
+            return None
+
+        provider = self.providers.active
+        if not provider:
+            return None
+
+        recent = [m for m in session.messages[-10:] if m.role in ("user", "assistant") and m.content]
+        lesson_text = "\n\n".join(f"**{m.role}**: {m.content[:500]}" for m in recent)
+
+        prompt = f"""Analyze this conversation and decide if there's reusable knowledge worth
+capturing as a skill. A "skill" is a repeatable workflow or knowledge domain.
+
+{lesson_text}
+
+Return JSON with the schema:
+{{"should_learn": true/false, "topic": "suggested-skill-name", "description": "one-liner", "tags": ["tag1"]}}
+
+If nothing new was taught/demonstrated, return {{"should_learn": false}}.
+Only return the JSON, no other text."""
+
+        try:
+            response = await provider.chat(
+                [Message(role="user", content=prompt)], [],
+                ModelOptions(model=self.config.small_model, max_tokens=300),
+            )
+            import re
+            result = response.content.strip()
+            # Extract JSON block if wrapped
+            json_match = re.search(r'\{.+\}', result, re.DOTALL)
+            if json_match:
+                result = json_match.group(0)
+
+            data = json.loads(result)
+            if data.get("should_learn"):
+                topic = data.get("topic", "untitled-skill")
+                desc = data.get("description", "")
+                tags = ", ".join(data.get("tags", []))
+                return f"💡 I learned something about **{topic}**!\n   {desc}\n   Type `/learn {topic}` to save it as a reusable skill."
+        except Exception:
+            pass
+
+        return None
+
     def shutdown(self) -> None:
         """Clean shutdown."""
         self.memory.close()

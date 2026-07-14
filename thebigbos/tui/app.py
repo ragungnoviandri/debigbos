@@ -34,7 +34,8 @@ from .screens.welcome import WelcomeScreen
 
 class BigBosApp(App[Any]):
     """Main TheBigBos Textual application."""
-
+    TITLE = "theBigBos.ai"
+    
     CSS = """
     Screen {
         background: #0d0d0d;

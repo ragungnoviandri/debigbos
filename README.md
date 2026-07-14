@@ -113,6 +113,8 @@ thebigbos run "bikin hello world"
 | `/agent <name> <task>` | Spawn subagent |
 | `/remember key:value` | Store persistent fact |
 | `/recall <query>` | Search memories |
+| `/learn <name> [tags:t1,t2]` | Save conversation as reusable SKILL.md |
+| `/learn-suggest` | Auto-detect teachable moment |
 | `/rename <title>` | Rename current session |
 | `/clear` | Clear screen |
 | `/help` | Show help |

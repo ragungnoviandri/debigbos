@@ -1431,6 +1431,79 @@ class HomeScreen(Screen[Any]):
                 self.notify(f"Model: {self.agent.config.active_model}")
                 self._update_sidebar()
 
+        # —— Memory commands ——
+        elif cmd.startswith("/remember "):
+            parts = cmd[10:].strip()
+            if ":" in parts:
+                key, _, value = parts.partition(":")
+                key, value = key.strip(), value.strip()
+                if self.agent and key and value:
+                    await self.agent.remember_fact(key, value)
+                    response_area.write(f"[green]Remembered:[/green] {key} = {value}\n")
+                else:
+                    response_area.write("[yellow]Usage: /remember key:value[/yellow]\n")
+            else:
+                response_area.write("[yellow]Usage: /remember key:value[/yellow]\n")
+
+        elif cmd.startswith("/recall "):
+            query = cmd[8:].strip()
+            if self.agent and query:
+                results = await self.agent.recall_facts(query)
+                if results:
+                    response_area.write(f"[bold]Memories for '{query}':[/bold]\n")
+                    for r in results:
+                        response_area.write(f"  • {r['content'][:200]}\n")
+                else:
+                    response_area.write(f"[dim]No memories found for '{query}'.[/dim]\n")
+            else:
+                response_area.write("[yellow]Usage: /recall query[/yellow]\n")
+
+        elif cmd == "/recall":
+            # Show all facts
+            if self.agent:
+                facts = self.agent.memory.get_all_facts()
+                if facts:
+                    response_area.write("[bold]All remembered facts:[/bold]\n")
+                    for k, v in facts.items():
+                        response_area.write(f"  • {k} = {v}\n")
+                else:
+                    response_area.write("[dim]No facts stored yet. Use /remember key:value[/dim]\n")
+
+        # —— Skill learning commands ——
+        elif cmd == "/learn":
+            response_area.write("[yellow]Usage: /learn <skill-name> [tags:tag1,tag2][/yellow]\n")
+
+        elif cmd.startswith("/learn "):
+            args = cmd[7:].strip()
+            if self.agent and args:
+                response_area.write(f"[bold cyan]Generating skill '{args}' from conversation...[/bold cyan]\n")
+                # Check for tags suffix: "/learn topic tags:tag1,tag2"
+                topic = args
+                tags = ""
+                if " tags:" in args:
+                    parts = args.rsplit(" tags:", 1)
+                    topic = parts[0].strip()
+                    tags = parts[1].strip()
+                result = await self.agent.learn_skill(topic, tags=tags)
+                response_area.write(f"{result}\n")
+            else:
+                response_area.write("[yellow]Usage: /learn <skill-name> [tags:tag1,tag2][/yellow]\n")
+
+        elif cmd == "/learn-suggest":
+            if self.agent:
+                response_area.write("[dim]Analyzing conversation for teachable moments...[/dim]\n")
+                suggestion = await self.agent.suggest_skill()
+                if suggestion:
+                    response_area.write(f"{suggestion}\n")
+                else:
+                    response_area.write("[dim]Nothing new to learn from this session yet. Keep chatting![/dim]\n")
+
+        else:
+            # Unknown command
+            if cmd.startswith("/"):
+                response_area.write(f"[yellow]Unknown command: {cmd}[/yellow]\n")
+                response_area.write("[dim]Type /help for available commands[/dim]\n")
+
     async def _fix_session(self) -> None:
         """Fix corrupted session messages — strip incomplete tool-call sequences."""
         response_area = self.query_one("#response-area", ResponseArea)
@@ -1497,8 +1570,10 @@ class HomeScreen(Screen[Any]):
 | `/model <id>` | Switch active model |
 | `/fix` | Repair corrupted session (after crash) |
 | `/copy` | Copy last response to clipboard |
-| `/remember <key>:<value>` | Store a fact |
-| `/recall <query>` | Search memories |
+| `/remember <key>:<value>` | Store a persistent fact |
+| `/recall [query]` | Search memories (or show all) |
+| `/learn <name> [tags:t1,t2]` | Save conversation as reusable SKILL.md |
+| `/learn-suggest` | Auto-detect skill from current session |
 """
         response_area = self.query_one("#response-area", ResponseArea)
         response_area.write(help_text)
