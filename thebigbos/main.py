@@ -918,6 +918,10 @@ async def run_update(args: argparse.Namespace) -> None:
     update_info = u.check()
     if not update_info:
         print("  Already up to date.")
+        # Show recent commits anyway
+        import subprocess
+        print()
+        subprocess.run(["git", "-C", str(u.repo_path), "log", "--oneline", "-5"])
         return
 
     print(f"\n  {update_info} available!")
