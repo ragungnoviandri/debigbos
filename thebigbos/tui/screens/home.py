@@ -31,7 +31,7 @@ from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.reactive import reactive
-from textual.screen import Screen
+from textual.screen import ModalScreen, Screen
 from textual.widgets import (
     Button,
     Header,
@@ -41,6 +41,7 @@ from textual.widgets import (
     Select,
     Static,
     TextArea,
+    Switch,
 )
 
 from ..keymap import KeymapRegistry
@@ -293,6 +294,212 @@ class ResponseArea(RichLog):
             return False
 
 
+class AddProviderDialog(ModalScreen[str | None]):
+    """Modal dialog to add a new model provider.
+    
+    Returns the provider name on success, None on cancel.
+    """
+
+    PRESETS: dict[str, dict] = {
+        "anthropic": {
+            "label": "Anthropic (Claude)",
+            "base_url": "https://api.anthropic.com/v1",
+            "models": ["claude-sonnet-4-20250514", "claude-3-5-sonnet-20241022", "claude-3-opus-20240229"],
+            "default_model": "claude-sonnet-4-20250514",
+        },
+        "groq": {
+            "label": "Groq",
+            "base_url": "https://api.groq.com/openai/v1",
+            "models": ["llama-3.1-70b", "mixtral-8x7b", "gemma2-9b"],
+            "default_model": "llama-3.1-70b",
+        },
+        "deepseek": {
+            "label": "DeepSeek",
+            "base_url": "https://api.deepseek.com/v1",
+            "models": ["deepseek-chat", "deepseek-coder"],
+            "default_model": "deepseek-chat",
+        },
+        "together": {
+            "label": "Together AI",
+            "base_url": "https://api.together.xyz/v1",
+            "models": ["meta-llama/Meta-Llama-3.1-405B", "mistralai/Mixtral-8x22B"],
+            "default_model": "meta-llama/Meta-Llama-3.1-405B",
+        },
+        "openrouter": {
+            "label": "OpenRouter",
+            "base_url": "https://openrouter.ai/api/v1",
+            "models": ["openai/gpt-4o", "anthropic/claude-sonnet-4", "deepseek/deepseek-chat"],
+            "default_model": "deepseek/deepseek-chat",
+        },
+        "opencode-zen": {
+            "label": "OpenCode Zen",
+            "base_url": "https://opencode.ai/zen/v1",
+            "models": ["deepseek-v4-pro", "deepseek-v4-flash", "qwen-plus", "qwen-max"],
+            "default_model": "deepseek-v4-pro",
+        },
+        "ollama": {
+            "label": "Ollama (local)",
+            "base_url": "http://localhost:11434/v1",
+            "models": ["llama3.1", "qwen2.5", "deepseek-r1", "codellama"],
+            "default_model": "llama3.1",
+            "no_api_key": True,
+        },
+        "__custom__": {
+            "label": "Custom...",
+            "base_url": "",
+            "models": ["gpt-4o", "gpt-4o-mini"],
+            "default_model": "gpt-4o",
+        },
+    }
+
+    def __init__(self, existing_providers: list[str] | None = None):
+        super().__init__()
+        self._existing = set(existing_providers or [])
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="add-provider-dialog", classes="modal-container"):
+            yield Label("[bold reverse]  ✨ Add Provider  [/bold reverse]", id="dialog-title")
+            
+            with Vertical(id="dialog-body"):
+                # Preset selector
+                yield Label("[bold]Choose a preset or enter custom:[/bold]")
+                preset_options = []
+                for key, info in self.PRESETS.items():
+                    label = info["label"]
+                    if key in self._existing:
+                        label += " ✓"
+                    preset_options.append((label, key))
+                yield Select(preset_options, id="preset-select", prompt="Select preset...", value="__custom__")
+                
+                yield Label("")  # spacer
+                
+                # Manual fields
+                yield Label("Provider Name:")
+                yield Input(id="provider-name-input", placeholder="my-custom-provider")
+                
+                yield Label("Base URL:")
+                yield Input(id="provider-url-input", placeholder="https://api.example.com/v1")
+                
+                yield Label("API Key:")
+                yield Input(id="provider-key-input", password=True, placeholder="sk-... or ${ENV_VAR}")
+                
+                yield Label("Models (comma-separated):")
+                yield Input(id="provider-models-input", placeholder="gpt-4o, gpt-4o-mini")
+                
+                yield Label("Default Model:")
+                yield Input(id="provider-default-model-input", placeholder="gpt-4o")
+                
+                yield Label("[dim italic]API key can be literal or ${ENV_VAR} reference[/dim italic]")
+
+            with Horizontal(id="dialog-actions"):
+                yield Button("Cancel", variant="default", id="cancel-btn")
+                yield Button("✨ Add Provider", variant="primary", id="add-provider-btn")
+
+    def on_mount(self) -> None:
+        """Focus preset select on open."""
+        preset = self.query_one("#preset-select", Select)
+        preset.focus()
+        # Trigger initial preset (custom)
+        self._on_preset_changed("__custom__")
+
+    @on(Select.Changed, "#preset-select")
+    def _on_preset_change(self, event: Select.Changed) -> None:
+        if event.value and event.value is not Select.NULL and event.value is not Select.BLANK:
+            self._on_preset_changed(event.value)
+
+    def _on_preset_changed(self, preset_key: str) -> None:
+        """Fill form fields based on selected preset."""
+        info = self.PRESETS.get(preset_key, {})
+        
+        name_input = self.query_one("#provider-name-input", Input)
+        url_input = self.query_one("#provider-url-input", Input)
+        key_input = self.query_one("#provider-key-input", Input)
+        models_input = self.query_one("#provider-models-input", Input)
+        default_input = self.query_one("#provider-default-model-input", Input)
+        
+        if preset_key == "__custom__":
+            name_input.value = ""
+            url_input.value = ""
+            key_input.value = ""
+            models_input.value = "gpt-4o, gpt-4o-mini"
+            default_input.value = "gpt-4o"
+            name_input.disabled = False
+            url_input.disabled = False
+            models_input.disabled = False
+            default_input.disabled = False
+            key_input.disabled = False
+        else:
+            name_input.value = preset_key
+            url_input.value = info.get("base_url", "")
+            models_input.value = ", ".join(info.get("models", []))
+            default_input.value = info.get("default_model", "")
+            name_input.disabled = True
+            url_input.disabled = True
+            models_input.disabled = False  # allow editing
+            default_input.disabled = False
+            if info.get("no_api_key"):
+                key_input.value = ""
+                key_input.disabled = True
+                key_input.placeholder = "(not needed)"
+            else:
+                key_input.disabled = False
+                key_input.placeholder = "sk-... or ${ENV_VAR}"
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "cancel-btn":
+            self.dismiss(None)
+        elif event.button.id == "add-provider-btn":
+            self._save()
+
+    def _save(self) -> None:
+        """Validate and save the new provider."""
+        name = self.query_one("#provider-name-input", Input).value.strip()
+        base_url = self.query_one("#provider-url-input", Input).value.strip()
+        api_key = self.query_one("#provider-key-input", Input).value.strip()
+        models_str = self.query_one("#provider-models-input", Input).value.strip()
+        default_model = self.query_one("#provider-default-model-input", Input).value.strip()
+
+        # Validate
+        if not name:
+            self.app.notify("Provider name is required", severity="error")
+            return
+        if name in self._existing:
+            self.app.notify(f"Provider '{name}' already exists", severity="warning")
+            return
+        if not base_url:
+            self.app.notify("Base URL is required", severity="error")
+            return
+        
+        models = [m.strip() for m in models_str.split(",") if m.strip()]
+        if not models:
+            self.app.notify("At least one model is required", severity="error")
+            return
+        if not default_model:
+            default_model = models[0]
+
+        # Store in auth.json
+        from ...config.auth import get_auth_manager
+        auth = get_auth_manager()
+        # Store key if it's literal or env var reference
+        if api_key:
+            auth.set_key(name, api_key, base_url)
+
+        # Pass result via dismiss
+        self._result = {
+            "name": name,
+            "base_url": base_url,
+            "api_key": api_key,
+            "models": models,
+            "default_model": default_model,
+        }
+        self.dismiss(name)
+    
+    def _on_key(self, event) -> None:
+        """Escape to cancel."""
+        if hasattr(event, 'key') and event.key == "escape":
+            self.dismiss(None)
+
+
 class HomeScreen(Screen[Any]):
     """Main home screen with chat, sidebar, and tool log."""
 
@@ -352,7 +559,9 @@ class HomeScreen(Screen[Any]):
 
                 # Provider & Model selectors
                 yield Label("[bold cyan]Provider[/bold cyan]", id="sidebar-provider-label")
-                yield Select([], id="provider-select", prompt="Provider...")
+                with Horizontal(id="provider-controls"):
+                    yield Select([], id="provider-select", prompt="Provider...")
+                    yield Button("+", variant="success", id="add-provider-btn", classes="icon-btn")
                 yield Label("[bold cyan]Model[/bold cyan]", id="sidebar-model-label")
                 yield Select([], id="model-select", prompt="Model...")
 

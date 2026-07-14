@@ -42,7 +42,8 @@ class ProviderRegistry:
             return OpencodeGoProvider(cfg)
         elif name in ("openrouter", "groq", "deepseek", "together"):
             return OpenAIProvider(cfg)
-        return None
+        # Default: treat any unknown provider as OpenAI-compatible
+        return OpenAIProvider(cfg)
 
     def get(self, name: str | None = None) -> ModelProvider | None:
         """Get a provider by name, or the active provider."""
@@ -69,6 +70,19 @@ class ProviderRegistry:
         if cfg := self.config.providers.get(provider_name):
             return cfg.models
         return []
+
+    def register_runtime_provider(self, name: str, cfg: ProviderConfig) -> bool:
+        """Register a new provider at runtime. Returns True on success."""
+        if name in self._providers:
+            return False  # Already registered
+        # Add to config
+        self.config.providers[name] = cfg
+        # Create and register
+        provider = self._create_provider(name, cfg)
+        if provider:
+            self._providers[name] = provider
+            return True
+        return False
 
     def build_tool_schemas(self, tool_definitions: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Convert internal tool definitions to provider-specific format."""
