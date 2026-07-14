@@ -1,6 +1,6 @@
 {
   "active_provider": "opencode-go",
-  "active_model": "deepseek-v4-pro",
+  "active_model": "deepseek-v4-flash",
   "small_model": "gpt-4o-mini",
   "providers": {
     "openai": {

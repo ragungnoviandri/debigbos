@@ -1,0 +1,11 @@
+Description:
+AI-powered CLI assistant with persistent memory, soul, skills & multi-model support. Built with Python + Textual TUI. Inspired by OpenCode & Hermes.
+
+Topics:
+ai-assistant cli terminal tui python textual multi-model openai anthropic deepseek ollama coding-agent developer-tools opencode hermes persistent-memory skills subagent session-management cross-platform
+
+Install:
+Windows: powershell -c "irm https://raw.githubusercontent.com/ragungnoviandri/thebigbos/master/install.ps1 | iex"
+Linux/macOS: curl -fsSL https://raw.githubusercontent.com/ragungnoviandri/thebigbos/master/install.sh | bash
+
+Repo: https://github.com/ragungnoviandri/thebigbos

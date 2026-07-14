@@ -319,7 +319,7 @@ class HomeScreen(Screen[Any]):
             # Show model's reasoning/thinking in a collapsible style
             self._thinking = False
             self._update_sidebar()
-            response_area.write(f"\n[dim]💭 {data}[/dim]\n")
+            response_area.write(f"\n[dim]reasoning: {data[:200]}...[/dim]")
 
         elif event_type == "response":
             self._thinking = False
@@ -335,6 +335,8 @@ class HomeScreen(Screen[Any]):
                         "args": tool.get("args", {}),
                         "status": "running",
                     })
+                    response_area.write(f"\n[dim]Tool: {tool['name']}({json.dumps(tool.get('args', {}))[:60]})[/dim]")
+                tool_log.tool_entries = list(self._tool_log)
                 tool_log.tool_entries = list(self._tool_log)
                 tool_log.refresh(layout=True)
             except Exception:
@@ -556,11 +558,12 @@ class HomeScreen(Screen[Any]):
             self._chat_task = asyncio.create_task(self._run_chat(user_input))
 
     async def _run_chat(self, user_input: str) -> None:
-        """Run chat in background — UI stays responsive."""
+        """Run chat with streaming response — text appears in real-time."""
+        response_area = self.query_one("#response-area", ResponseArea)
         try:
-            await self.agent.chat(user_input, stream=False)
+            async for chunk in self.agent.stream_chat(user_input):
+                response_area.write(chunk)
         except Exception as e:
-            response_area = self.query_one("#response-area", ResponseArea)
             response_area.write(f"\n[red]Error: {e}[/red]")
         finally:
             self._thinking = False
