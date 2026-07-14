@@ -56,17 +56,49 @@ class OpencodeGoProvider(ModelProvider):
         url = f"{self.base_url}/chat/completions"
         try:
             response = await self.client.post(url, json=body)
-            data = response.json()
+        except httpx.TimeoutException:
+            return ModelResponse(
+                content=f"[API Error] Request timed out ({self.config.timeout}s). The provider may be overloaded.",
+                finish_reason="error",
+            )
+        except httpx.ConnectError as e:
+            return ModelResponse(
+                content=f"[API Error] Cannot connect to {self.base_url}. Check network or API status.",
+                finish_reason="error",
+            )
         except Exception as e:
             return ModelResponse(content=f"[API Error] {e}", finish_reason="error")
 
         if response.status_code != 200:
-            error_msg = data.get("error", {}).get("message", str(data))
+            try:
+                data = response.json()
+            except Exception:
+                data = {}
+            error_msg = data.get("error", {}).get("message", response.text[:300] or str(response.status_code))
+
+            # Classify errors for better user guidance
+            if response.status_code == 401 or response.status_code == 403:
+                prefix = "[Auth Error]"
+                hint = " — check your API key (thebigbos configure --key opencode-go=YOUR_KEY)"
+            elif response.status_code == 429:
+                prefix = "[Rate Limit]"
+                hint = " — too many requests, wait and retry"
+            elif response.status_code >= 500:
+                prefix = "[Upstream Error]"
+                hint = " — the provider's upstream is down, try again later"
+            elif response.status_code == 400 or response.status_code == 422:
+                prefix = "[Payload Error]"
+                hint = " — message format issue (try /fix to clean corrupted session)"
+            else:
+                prefix = "[API Error]"
+                hint = ""
+
             return ModelResponse(
-                content=f"[API Error] {error_msg}",
+                content=f"{prefix} {error_msg}{hint}",
                 finish_reason="error",
             )
 
+        data = response.json()
         choice = data["choices"][0]
         msg = choice.get("message", {})
 

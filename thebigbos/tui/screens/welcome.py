@@ -77,7 +77,7 @@ class WelcomeScreen(Screen[Any]):
                         yield Label(f"    - {title}{src}")
                 yield Label("")
 
-            yield Label("  [bold]Press Enter or Ctrl+S to pick session, or start typing to chat[/bold]")
+            yield Label("  [bold]Press any key to start — session created on first message[/bold]")
             yield Label("  /help for commands  |  Ctrl+Q to quit")
 
         yield Footer()

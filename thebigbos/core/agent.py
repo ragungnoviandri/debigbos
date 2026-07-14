@@ -227,6 +227,8 @@ class BigBosAgent:
             msgs = self.memory.load_messages(sid, limit=5)
             for m in msgs:
                 session.messages.append(self._db_to_message(m))
+            # Sanitize incomplete tool-call sequences from abrupt kills
+            session.messages = self._sanitize_messages(session.messages)
 
     def start_session(self) -> Session:
         """Start a new conversation session."""
@@ -247,6 +249,8 @@ class BigBosAgent:
             recent = msgs[-30:]  # Last 30 messages
             for m in recent:
                 session.messages.append(self._db_to_message(m))
+            # Sanitize: strip incomplete tool-call sequences (from abrupt kills)
+            session.messages = self._sanitize_messages(session.messages)
             if len(msgs) > 30:
                 summary = self.memory.get_session_summary(session_id)
                 if summary:
@@ -365,6 +369,60 @@ class BigBosAgent:
             name=m.get("name"),
         )
 
+    def _sanitize_messages(self, messages: list[Message]) -> list[Message]:
+        """Strip incomplete tool-call sequences caused by abrupt process kills.
+
+        If an assistant message has tool_calls but no matching tool result follows
+        (process was killed mid-execution), remove the dangling assistant message
+        and any orphaned tool results to keep the API happy.
+        """
+        if not messages:
+            return messages
+
+        # Remove leading tool/orphan messages (no preceding assistant context)
+        while messages and messages[0].role == "tool":
+            messages.pop(0)
+
+        cleaned: list[Message] = []
+        pending_tool_ids: set[str] = set()
+
+        for msg in messages:
+            if msg.role == "assistant" and msg.tool_calls:
+                # Track expected tool result IDs
+                for tc in msg.tool_calls:
+                    pending_tool_ids.add(tc.id)
+                cleaned.append(msg)
+            elif msg.role == "tool" and msg.tool_call_id:
+                if msg.tool_call_id in pending_tool_ids:
+                    pending_tool_ids.discard(msg.tool_call_id)
+                    cleaned.append(msg)
+                # else: orphaned tool result — skip it
+            else:
+                # user, system, or assistant without tool_calls
+                # If there are pending tool calls when we hit a non-tool message,
+                # the sequence was interrupted — strip the dangling assistant message
+                if pending_tool_ids:
+                    # Find and remove the last assistant message with pending tool_calls
+                    for i in range(len(cleaned) - 1, -1, -1):
+                        if cleaned[i].role == "assistant" and cleaned[i].tool_calls:
+                            tc_ids = {tc.id for tc in cleaned[i].tool_calls}
+                            if tc_ids & pending_tool_ids:
+                                cleaned.pop(i)
+                                break
+                    pending_tool_ids.clear()
+                cleaned.append(msg)
+
+        # If messages end with pending tool calls (abrupt end), strip the last assistant
+        if pending_tool_ids:
+            for i in range(len(cleaned) - 1, -1, -1):
+                if cleaned[i].role == "assistant" and cleaned[i].tool_calls:
+                    tc_ids = {tc.id for tc in cleaned[i].tool_calls}
+                    if tc_ids & pending_tool_ids:
+                        cleaned.pop(i)
+                        break
+
+        return cleaned
+
     # ——— Main agent loop ———
 
     async def chat(self, user_input: str, stream: bool = True, fresh: bool = False) -> str:
@@ -417,6 +475,10 @@ class BigBosAgent:
 
         while self.state.step_count < max_steps:
             self.state.step_count += 1
+
+            # Re-emit thinking before each model call (after tool execution)
+            if self.state.step_count > 1:
+                self._emit("thinking", "")
 
             # Check for context compaction
             if self._should_compact():
@@ -474,6 +536,9 @@ class BigBosAgent:
                 ))
                 self._emit("tool_result", json.dumps({"name": tc.name, "result": result[:500]}))
 
+        # All steps done — signal completion
+        self._emit("done", "")
+
         # Update session title if first exchange
         if self.state.step_count > 0 and not session.title:
             session.title = user_input[:50] + ("..." if len(user_input) > 50 else "")
@@ -526,6 +591,10 @@ class BigBosAgent:
         while self.state.step_count < max_steps:
             self.state.step_count += 1
 
+            # Re-emit thinking before each model call (e.g., after tools execute)
+            if self.state.step_count > 1:
+                self._emit("thinking", "")
+
             try:
                 response = await provider.chat(session.to_llm_format(), tool_schemas, options)
             except Exception as e:
@@ -569,6 +638,9 @@ class BigBosAgent:
                 result = await self.tools.execute(tc.name, tc.arguments)
                 self.memory.save_message(session.id, "tool", result, tool_call_id=tc.id, name=tc.name)
                 session.add_message(Message(role="tool", content=result, tool_call_id=tc.id, name=tc.name))
+
+        # All steps done — signal completion
+        self._emit("done", "")
 
         if not session.title:
             session.title = user_input[:50] + ("..." if len(user_input) > 50 else "")

@@ -152,8 +152,12 @@ class SidebarWidget(Static):
             lines.append("")
         if self.session_id:
             lines.append(f" Session: [dim]{self.session_id}[/dim]")
-        if self.session_title and self.session_title != "Untitled":
-            lines.append(f" Title: {self.session_title[:30]}")
+            title = self.session_title or "Untitled"
+            lines.append(f" Title: [bold]{title[:30]}[/bold]")
+            lines.append(" [dim]Ctrl+R to rename[/dim]")
+        else:
+            lines.append(" [dim]No active session[/dim]")
+            lines.append(" [dim]Start chatting to create one[/dim]")
         lines.append("")
         lines.append(f" Mode: [bold]{self.mode}[/bold]")
         lines.append(f" Model: {self.model[:28]}")
@@ -215,6 +219,7 @@ class HomeScreen(Screen[Any]):
         ("ctrl+q", "quit", "Quit"),
         ("ctrl+h", "show_help", "Help"),
         ("ctrl+s", "show_sessions", "Pick Session"),
+        ("ctrl+r", "rename_session", "Rename Session"),
         ("ctrl+m", "show_models", "Models"),
         ("escape", "focus_prompt", "Focus ChatInput"),
     ]
@@ -373,16 +378,14 @@ class HomeScreen(Screen[Any]):
             # Show config
             self._show_config_banner()
 
-            # Show session picker at startup (lazy-load external sessions)
+            # Lazy-load external sessions for the dropdown
             self.agent._ensure_sessions_imported()
-            sessions = self.agent.memory.list_sessions(limit=30)
-            if sessions:
-                self._show_session_picker_inline(sessions)
-            else:
-                # No sessions — start fresh
-                self.agent.start_session()
-                greeting = self.agent.soul.personalize_greeting()
-                response_area.write(f"\n[bold cyan]{greeting}[/bold cyan]\n")
+
+            # Don't create a session yet — wait for first chat message
+            # Just show ready state
+            greeting = self.agent.soul.personalize_greeting()
+            response_area.write(f"\n[bold cyan]{greeting}[/bold cyan]\n")
+            response_area.write("[dim]Start typing to begin — session will be created on first message[/dim]\n")
 
             self._populate_session_select()
             self._update_sidebar()
@@ -414,12 +417,14 @@ class HomeScreen(Screen[Any]):
             self._thinking = False
 
         elif event_type == "reasoning":
-            # Model's reasoning/thinking — already streamed inline via RichLog
-            # Just toggle thinking state off
-            self._thinking = False
+            # Model's reasoning/thinking — keep thinking spinner active
             self._update_sidebar()
 
         elif event_type == "response":
+            # Content arriving — keep spinner on, wait for done
+            self._update_sidebar()
+
+        elif event_type == "done":
             self._thinking = False
             self._update_sidebar()
 
@@ -711,6 +716,9 @@ class HomeScreen(Screen[Any]):
             else:
                 self.notify(f"Session {sid} not found", severity="error")
 
+        elif cmd == "/fix":
+            await self._fix_session()
+
         elif cmd == "/copy":
             self._copy_last_response()
 
@@ -719,6 +727,24 @@ class HomeScreen(Screen[Any]):
                 self.agent.config.active_model = cmd[7:].strip()
                 self.notify(f"Model: {self.agent.config.active_model}")
                 self._update_sidebar()
+
+    async def _fix_session(self) -> None:
+        """Fix corrupted session messages — strip incomplete tool-call sequences."""
+        response_area = self.query_one("#response-area", ResponseArea)
+        if not self.agent or not self.agent.sessions.active:
+            response_area.write("[yellow]No active session to fix.[/yellow]\n")
+            return
+
+        session = self.agent.sessions.active
+        before = len(session.messages)
+        session.messages = self.agent._sanitize_messages(session.messages)
+        after = len(session.messages)
+        removed = before - after
+        if removed > 0:
+            response_area.write(f"[green]Fixed! Removed {removed} incomplete message(s).[/green]\n")
+            self._load_history()
+        else:
+            response_area.write("[dim]Session is clean — nothing to fix.[/dim]\n")
 
     def _copy_last_response(self) -> None:
         """Copy last response to clipboard via platform command."""
@@ -752,6 +778,7 @@ class HomeScreen(Screen[Any]):
 | `/models` | List available models |
 | `/skills` | List available skills |
 | `/model <id>` | Switch active model |
+| `/fix` | Repair corrupted session (after crash) |
 | `/copy` | Copy last response to clipboard |
 | `/remember <key>:<value>` | Store a fact |
 | `/recall <query>` | Search memories |
@@ -858,6 +885,62 @@ class HomeScreen(Screen[Any]):
     def action_show_sessions(self) -> None:
         import asyncio
         asyncio.create_task(self._show_sessions())
+
+    def action_rename_session(self) -> None:
+        """Rename the current session title."""
+        if not self.agent or not self.agent.sessions.active:
+            self.notify("No active session to rename", severity="warning")
+            return
+
+        session = self.agent.sessions.active
+        old_title = session.title or "Untitled"
+
+        from textual.screen import ModalScreen
+        from textual.widgets import Input, Label
+
+        class RenameDialog(ModalScreen[str | None]):
+            BINDINGS = [("escape", "dismiss_none", "Cancel")]
+            DEFAULT_CSS = """
+            RenameDialog {
+                align: center middle;
+                background: transparent;
+            }
+            RenameDialog > Vertical {
+                width: 50;
+                height: auto;
+                background: #1a1a2e;
+                border: thick #00d4ff;
+                padding: 1 2;
+            }
+            """
+            def __init__(self, prompt: str, default: str):
+                super().__init__()
+                self._prompt = prompt
+                self._default = default
+            def compose(self):
+                from textual.containers import Vertical
+                with Vertical():
+                    yield Label(f"[bold]{self._prompt}[/bold]")
+                    yield Input(value=self._default, id="rename-input")
+                    yield Label("[dim]Enter=confirm  Esc=cancel[/dim]")
+            def on_input_submitted(self, event):
+                val = event.value.strip()
+                if val:
+                    self.dismiss(val)
+                else:
+                    self.dismiss(None)
+            def action_dismiss_none(self):
+                self.dismiss(None)
+
+        def _on_renamed(new_title: str | None):
+            if new_title and new_title != old_title:
+                self.agent.memory.update_session_title(session.id, new_title)
+                session.title = new_title
+                self._update_sidebar()
+                self._populate_session_select()
+                self.notify(f"Session renamed: {new_title[:30]}")
+
+        self.app.push_screen(RenameDialog("Rename session:", old_title), callback=_on_renamed)
 
     def action_show_models(self) -> None:
         self._show_models()
