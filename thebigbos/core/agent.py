@@ -518,9 +518,8 @@ class BigBosAgent:
                 break
 
             # Execute tools
-            self._emit("tool_executing", json.dumps([
-                {"name": tc.name, "args": tc.arguments} for tc in response.tool_calls
-            ]))
+            tools_this_step = [{"name": tc.name, "args": tc.arguments} for tc in response.tool_calls]
+            self._emit("tool_executing", json.dumps(tools_this_step))
 
             for tc in response.tool_calls:
                 result = await self.tools.execute(tc.name, tc.arguments)
@@ -535,6 +534,9 @@ class BigBosAgent:
                     name=tc.name,
                 ))
                 self._emit("tool_result", json.dumps({"name": tc.name, "result": result[:500]}))
+
+            # Emit summary after all tools in this step finish
+            self._emit("tool_done", json.dumps(tools_this_step))
 
         # All steps done — signal completion
         self._emit("done", "")
@@ -638,6 +640,10 @@ class BigBosAgent:
                 result = await self.tools.execute(tc.name, tc.arguments)
                 self.memory.save_message(session.id, "tool", result, tool_call_id=tc.id, name=tc.name)
                 session.add_message(Message(role="tool", content=result, tool_call_id=tc.id, name=tc.name))
+
+            # Emit summary after tools finish
+            tools_summary = [{"name": tc.name, "args": tc.arguments} for tc in response.tool_calls]
+            self._emit("tool_done", json.dumps(tools_summary))
 
         # All steps done — signal completion
         self._emit("done", "")

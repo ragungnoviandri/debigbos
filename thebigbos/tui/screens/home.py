@@ -44,6 +44,7 @@ from textual.widgets import (
 )
 
 from ..keymap import KeymapRegistry
+from ...tools.git_utils import GitWorkspace
 
 
 class ChatInput(TextArea):
@@ -174,6 +175,9 @@ class SidebarWidget(Static):
     mode: reactive[str] = reactive("build")
     thinking: reactive[bool] = reactive(False)
     error_msg: reactive[str] = reactive("")
+    git_branch: reactive[str] = reactive("")
+    git_status: reactive[str] = reactive("")
+    git_remote: reactive[str] = reactive("")
 
     def render(self) -> str:
         lines = []
@@ -212,6 +216,16 @@ class SidebarWidget(Static):
             lines.append(f" Skills: {self.skill_count}")
         if self.auto_approve:
             lines.append(" Auto: [yellow]ON[/yellow]")
+
+        # Git info
+        if self.git_branch:
+            lines.append("")
+            lines.append("[bold cyan] Git[/bold cyan]")
+            lines.append(" ─────────────")
+            lines.append(f" Branch: [green]{self.git_branch}[/green]")
+            lines.append(f" Status: {self.git_status}")
+            if self.git_remote:
+                lines.append(f" Remote: [dim]{self.git_remote}[/dim]")
         return "\n".join(lines)
 
     @staticmethod
@@ -243,7 +257,42 @@ class ResponseArea(RichLog):
 
     def on_mount(self) -> None:
         self.can_focus = True
-        self.border_title = "[dim]Chat - select text + Ctrl+C to copy[/dim]"
+        self.border_title = "[dim]Click to focus · Shift+arrows to select · Ctrl+C to copy[/dim]"
+        self.highlight = True
+
+    @property
+    def selected_text(self) -> str:
+        """Get currently selected text, if any."""
+        try:
+            sel = self.selection
+            if sel:
+                # self.selection returns a Selection or tuple
+                start, end = (sel.start, sel.end) if hasattr(sel, 'start') else (sel[0], sel[1])
+                if start != end:
+                    # Build text from the lines
+                    lines = self.lines
+                    return "\n".join(lines[start.row:end.row + 1])[start.column:end.column]
+        except Exception:
+            pass
+        return ""
+
+    def copy_to_clipboard(self, text: str) -> bool:
+        """Copy text to system clipboard. Returns True on success."""
+        import subprocess
+        import sys
+        if not text:
+            return False
+        try:
+            if sys.platform == "win32":
+                subprocess.run("clip", input=text[:10000].encode("utf-8", errors="replace"), check=False)
+            elif sys.platform == "darwin":
+                subprocess.run("pbcopy", input=text.encode("utf-8", errors="replace"), check=False)
+            else:
+                subprocess.run(["xclip", "-selection", "clipboard"],
+                               input=text.encode("utf-8", errors="replace"), check=False)
+            return True
+        except Exception:
+            return False
 
 
 class HomeScreen(Screen[Any]):
@@ -255,6 +304,7 @@ class HomeScreen(Screen[Any]):
         ("ctrl+q", "quit", "Quit"),
         ("ctrl+h", "show_help", "Help"),
         ("ctrl+s", "show_sessions", "Pick Session"),
+        ("ctrl+c", "copy_text", "Copy"),
         ("ctrl+r", "rename_session", "Rename Session"),
         ("ctrl+m", "show_models", "Models"),
         ("escape", "focus_prompt", "Focus ChatInput"),
@@ -276,6 +326,7 @@ class HomeScreen(Screen[Any]):
         self._tool_log: list[dict[str, Any]] = []
         self._thinking = False
         self._initialized = False
+        self._git: GitWorkspace | None = None
 
     def compose(self) -> ComposeResult:
         """Build the layout."""
@@ -307,6 +358,8 @@ class HomeScreen(Screen[Any]):
                 classes="chat-input",
             )
             yield Button("Send", variant="primary", id="send-btn")
+            yield Button("Commit", variant="default", id="commit-btn")
+            yield Button("Push", variant="default", id="push-btn")
 
         yield StatusBar(id="status-bar")
 
@@ -422,20 +475,40 @@ class HomeScreen(Screen[Any]):
 
             # Don't create a session yet — wait for first chat message
             # Show rich welcome banner
-            sessions = len(self.agent.memory.list_sessions(limit=100))
+            sessions = self.agent.memory.list_sessions(limit=100)
             banner = self.agent.soul.welcome_banner(
                 model=self.agent.config.active_model,
                 provider=self.agent.config.active_provider,
                 workspace=str(self.workspace),
                 skills=len(self.agent.skills.list_skills()),
                 tools=len(self.agent.tools.get_tool_names()),
-                sessions=sessions,
+                sessions=len(sessions),
             )
             response_area.write(banner)
+
+            # Show existing sessions inline so user can pick one
+            if sessions:
+                response_area.write("[bold cyan]📂 Recent sessions:[/bold cyan]\n")
+                for i, s in enumerate(sessions[:10], 1):
+                    title = (s.get("title") or "Untitled")[:40]
+                    sid = s["id"][:8]
+                    src = s.get("source", "")
+                    tag = f" [dim]({src})[/dim]" if src else ""
+                    response_area.write(f"  [bold]{i}.[/bold] [cyan]{title}[/cyan] [dim]{sid}{tag}[/dim]")
+                response_area.write("\n[dim]Select from the sidebar → or just start typing![/dim]\n")
+            else:
+                response_area.write("[dim]No sessions yet. Just start typing to create one![/dim]\n")
 
             self._populate_session_select()
             self._update_sidebar()
             input_widget.focus()
+
+            # Init git wrapper
+            if self.workspace:
+                self._git = GitWorkspace(self.workspace)
+                self._update_git_status()
+                # Also call again when sidebar is fully mounted
+                self.set_timer(0.5, self._update_git_status)
 
         self._initialized = True
 
@@ -503,6 +576,19 @@ class HomeScreen(Screen[Any]):
             except Exception:
                 pass
 
+        elif event_type == "tool_done":
+            try:
+                tools = json.loads(data)
+                names = [t["name"] for t in tools]
+                count = len(names)
+                if count == 1:
+                    response_area.write(f"  [dim green]✔ {names[0]} done[/dim green]")
+                elif count > 1:
+                    joined = ", ".join(names)
+                    response_area.write(f"  [dim green]✔ {count} tools done ({joined})[/dim green]")
+            except Exception:
+                pass
+
         elif event_type == "session_started":
             self._update_sidebar()
             self._populate_session_select()
@@ -513,23 +599,6 @@ class HomeScreen(Screen[Any]):
 
         elif event_type == "compacted":
             self.notify("Context compacted", title="Memory")
-
-    def _show_config_banner(self) -> None:
-        """Show active configuration."""
-        response_area = self.query_one("#response-area", ResponseArea)
-        if not self.agent:
-            return
-
-        lines = [
-            "",
-            f" Model: [bold]{self.agent.config.active_provider}/{self.agent.config.active_model}[/bold]",
-            f" Soul: {self.agent.soul.name}",
-            f" Skills: {len(self.agent.skills.list_skills())}",
-            f" Providers: {', '.join(self.agent.providers.list_providers())}",
-            f" Workspace: {self.workspace or 'current'}",
-            "",
-        ]
-        response_area.write("\n".join(lines))
 
     def _show_session_picker_inline(self, sessions: list[dict]) -> None:
         """Show interactive session picker with arrow keys."""
@@ -720,6 +789,117 @@ class HomeScreen(Screen[Any]):
             input_widget.clear()
             await self._handle_chat_input(text)
 
+    @on(Button.Pressed, "#commit-btn")
+    async def _on_commit_btn(self) -> None:
+        """Commit button — stage + commit with auto message."""
+        if not self._git or not self._git.is_repo:
+            self.notify("Not a git repository", severity="error")
+            return
+
+        if not self._git.has_changes():
+            self.notify("Nothing to commit — working tree clean")
+            return
+
+        # Generate commit message from last response or timestamp
+        msg = f"Auto-commit — {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        ok, result = self._git.stage_all()
+        if not ok:
+            self.notify(f"Stage failed: {result}", severity="error")
+            return
+        ok, result = self._git.commit(msg)
+        if ok:
+            self.notify(f"Committed: {result.splitlines()[0] if result else 'OK'}")
+        else:
+            self.notify(f"Commit failed: {result}", severity="error")
+        self._update_git_status()
+
+    @on(Button.Pressed, "#push-btn")
+    async def _on_push_btn(self) -> None:
+        """Push button — push to origin. Prompts for remote if not set."""
+        if not self._git or not self._git.is_repo:
+            self.notify("Not a git repository", severity="error")
+            return
+
+        # Remote dibaca langsung dari .git/config project ini
+        if not self._git.has_remote():
+            await self._prompt_remote_url()
+            return
+
+        ok, result = self._git.push()
+        if ok:
+            self.notify("Pushed! 🚀")
+            self._update_git_status()
+        else:
+            self.notify(f"Push failed: {result[:100]}", severity="error")
+
+    async def _prompt_remote_url(self) -> None:
+        """Show dialog to add git remote (stored in project's .git/config)."""
+        from ..dialogs import DialogPrompt
+
+        def _on_remote_set(url: str | None) -> None:
+            if not url or not url.strip():
+                return
+            url = url.strip()
+            ok, msg = self._git.set_remote(url)
+            if ok:
+                self.notify(f"Remote added: {url}")
+                self._update_git_status()
+            else:
+                self.notify(f"Failed: {msg}", severity="error")
+
+        self.app.push_screen(
+            DialogPrompt(
+                title="Add Git Remote (origin):",
+                value="https://github.com/user/repo.git",
+            ),
+            callback=_on_remote_set,
+        )
+
+    def _update_git_status(self) -> None:
+        """Update button labels + sidebar with git status indicators."""
+        sidebar = self.query_one("#sidebar-info", SidebarWidget)
+
+        if not self._git or not self._git.is_repo:
+            sidebar.git_branch = ""
+            sidebar.git_status = ""
+            sidebar.git_remote = ""
+            try:
+                self.query_one("#commit-btn", Button).label = "No Repo"
+                self.query_one("#push-btn", Button).label = "No Repo"
+            except Exception:
+                pass
+            return
+
+        try:
+            commit_btn = self.query_one("#commit-btn", Button)
+            push_btn = self.query_one("#push-btn", Button)
+
+            status = self._git.status_summary()
+            has_changes = self._git.has_changes()
+            has_remote = self._git.has_remote()
+            branch = self._git.current_branch()
+            remote_url = self._git.get_remote_url() if has_remote else ""
+
+            sidebar.git_branch = branch
+            sidebar.git_status = status
+            sidebar.git_remote = remote_url[:40] + ("..." if len(remote_url) > 40 else "") if remote_url else ""
+
+            if has_changes:
+                commit_btn.label = f"💾 Commit"
+                commit_btn.variant = "warning"
+            else:
+                commit_btn.label = "✓ Commit"
+                commit_btn.variant = "success"
+
+            if has_remote:
+                push_btn.label = "🚀 Push"
+                push_btn.variant = "primary"
+            else:
+                push_btn.label = "🔗 Set Remote"
+                push_btn.variant = "default"
+        except Exception:
+            pass
+
     async def _run_chat(self, user_input: str) -> None:
         """Run chat with streaming response — text appears in real-time."""
         response_area = self.query_one("#response-area", ResponseArea)
@@ -797,20 +977,34 @@ class HomeScreen(Screen[Any]):
         else:
             response_area.write("[dim]Session is clean — nothing to fix.[/dim]\n")
 
+    def action_copy_text(self) -> None:
+        """Copy selected text (if any) or last response to clipboard."""
+        response_area = self.query_one("#response-area", ResponseArea)
+
+        # 1. Try to get selected text from response area
+        selected = response_area.selected_text
+        if selected:
+            if response_area.copy_to_clipboard(selected):
+                self.notify("Copied selection!", timeout=1.5)
+            else:
+                self.notify("Copy failed", severity="warning")
+            return
+
+        # 2. Fallback: copy last assistant response
+        self._copy_last_response()
+
     def _copy_last_response(self) -> None:
         """Copy last response to clipboard via platform command."""
-        import subprocess
         txt = ""
         for msg in (self.agent.sessions.active.messages if self.agent and self.agent.sessions.active else []):
             if msg.role == "assistant" and msg.content:
                 txt = msg.content
         if txt:
-            if __import__("sys").platform == "win32":
-                subprocess.run("clip", input=txt[:5000].encode("utf-8", errors="replace"), check=False)
+            response_area = self.query_one("#response-area", ResponseArea)
+            if response_area.copy_to_clipboard(txt[:5000]):
+                self.notify("Copied last response!", timeout=1.5)
             else:
-                subprocess.run("pbcopy" if __import__("sys").platform == "darwin" else ["xclip", "-sel", "c"],
-                             input=txt.encode("utf-8", errors="replace"), check=False)
-            self.notify("Copied to clipboard!")
+                self.notify("Copy failed", severity="warning")
         else:
             self.notify("Nothing to copy", severity="warning")
 
