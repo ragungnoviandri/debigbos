@@ -285,8 +285,7 @@ class HomeScreen(Screen[Any]):
     @on(Select.Changed, "#session-select")
     def _on_session_select_changed(self, event: Select.Changed) -> None:
         """Handle session selection from dropdown."""
-        if not event.value or not self.agent:
-            return
+        if not event.value or not self.agent or event.value is Select.NULL:
         # Don't reload if it's already the active session
         active = self.agent.sessions.active
         if active and active.id == event.value:
