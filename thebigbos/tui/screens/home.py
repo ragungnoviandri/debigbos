@@ -47,10 +47,11 @@ from ..keymap import KeymapRegistry
 
 
 class ChatInput(TextArea):
-    """Multi-line input. Enter=Send, Shift+Enter=newline."""
+    """Multi-line input. Enter=Send, Ctrl+J=newline."""
 
     BINDINGS = [
-        ("enter", "action_submit_text", "Send"),
+        ("enter", "submit_text", "Send"),
+        ("ctrl+j", "newline", "New Line"),
     ]
 
     class Submitted(Message):
@@ -61,13 +62,17 @@ class ChatInput(TextArea):
 
     def on_mount(self) -> None:
         self.styles.max_height = 6
-        self.border_title = "Enter=Send, Shift+Enter=newline"
+        self.border_title = "Enter=Send  Ctrl+J=newline"
 
     def action_submit_text(self) -> None:
         text = self.text.strip()
         if text:
             self.post_message(self.Submitted(text))
             self.clear()
+
+    def action_newline(self) -> None:
+        """Insert a newline at cursor position."""
+        self.insert("\n")
 
 
 class StatusBar(Static):
