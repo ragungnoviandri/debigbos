@@ -279,7 +279,7 @@ class HomeScreen(Screen[Any]):
         self.agent._ensure_sessions_imported()
         sessions = self.agent.memory.list_sessions(limit=50)
 
-        options = []
+        options = [("+ New Session", "__new__")]
         active_session = self.agent.sessions.active
         active_id = active_session.id if active_session else None
 
@@ -308,6 +308,16 @@ class HomeScreen(Screen[Any]):
     def _on_session_select_changed(self, event: Select.Changed) -> None:
         """Handle session selection from dropdown."""
         if not event.value or not self.agent or event.value is Select.NULL:
+            return
+        # New session
+        if event.value == "__new__":
+            self.agent.start_session()
+            response_area = self.query_one("#response-area", ResponseArea)
+            response_area.clear()
+            response_area.write(f"[bold cyan]{self.agent.soul.personalize_greeting()}[/bold cyan]\n")
+            self._update_sidebar()
+            self._populate_session_select()
+            self.notify("New session started")
             return
         # Don't reload if it's already the active session
         active = self.agent.sessions.active
@@ -479,6 +489,7 @@ class HomeScreen(Screen[Any]):
                 ("escape", "dismiss_none", "Cancel"),
                 ("d", "delete_session", "Delete"),
                 ("r", "rename_session", "Rename"),
+                ("n", "new_session", "New Session"),
             ]
 
             DEFAULT_CSS = """
@@ -505,7 +516,7 @@ class HomeScreen(Screen[Any]):
                 with Vertical():
                     yield Label("[bold cyan]Sessions[/bold cyan]")
                     yield ListView(id="session-list")
-                    yield Label("[dim]Enter=select  Esc=close  D=delete  R=rename[/dim]")
+                    yield Label("[dim]Enter=select  Esc=close  D=delete  R=rename  N=new[/dim]")
 
             def on_mount(self) -> None:
                 list_view = self.query_one("#session-list", ListView)
@@ -563,6 +574,10 @@ class HomeScreen(Screen[Any]):
 
                     self.app.push_screen(RenameDialog(f"Rename:", old_title), callback=on_input)
 
+            def action_new_session(self) -> None:
+                self.agent.start_session()
+                self.dismiss("__new__")
+
             def action_dismiss_none(self) -> None:
                 self.dismiss(None)
 
@@ -579,6 +594,14 @@ class HomeScreen(Screen[Any]):
             return
         if session_id == "__deleted__":
             self._populate_session_select()
+            return
+        if session_id == "__new__":
+            response_area = self.query_one("#response-area", ResponseArea)
+            response_area.clear()
+            response_area.write(f"[bold cyan]{self.agent.soul.personalize_greeting()}[/bold cyan]\n")
+            self._update_sidebar()
+            self._populate_session_select()
+            self.notify("New session started")
             return
         if session_id:
             if self.agent.continue_session(session_id):
