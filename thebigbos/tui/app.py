@@ -86,6 +86,21 @@ class BigBosApp(App[Any]):
         border-top: solid #00d4ff;
     }
 
+    /* Mode toggle — vertical, left of chatbox */
+    #mode-toggle {
+        width: auto;
+        min-width: 8;
+        height: auto;
+        align: center middle;
+    }
+
+    .mode-btn {
+        width: 100%;
+        height: auto;
+        min-height: 3;
+        margin-bottom: 0;
+    }
+
     #prompt-input {
         width: 1fr;
         height: auto;
@@ -223,13 +238,24 @@ class BigBosApp(App[Any]):
         min-width: 16;
     }
 
-    /* Commit dialog specific */
+    /* Commit dialog — big transparent popup */
     #commit-dialog {
-        width: 60%;
+        width: 65%;
         height: auto;
-        background: #1a1a2e;
+        min-height: 14;
+        background: #0f0f23 95%;
         border: thick #00d4ff;
-        padding: 1 2;
+        padding: 2 3;
+        align: center middle;
+    }
+
+    #commit-msg-input {
+        width: 100%;
+        margin: 1 0;
+        height: 5;
+        background: #0d0d0d;
+        border: solid #333355;
+        color: #e0e0e0;
     }
 
     /* Dialog styling */

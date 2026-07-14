@@ -564,12 +564,6 @@ class HomeScreen(Screen[Any]):
                 yield Label("[bold cyan]Model[/bold cyan]", id="sidebar-model-label")
                 yield Select([], id="model-select", prompt="Model...")
 
-                # Mode toggle: Plan / Build
-                yield Label("[bold cyan]Mode[/bold cyan]", id="sidebar-mode-label")
-                with Horizontal(id="mode-controls"):
-                    yield Button("📋 Plan", variant="default", id="mode-plan-btn", classes="mode-btn")
-                    yield Button("🔨 Build", variant="primary", id="mode-build-btn", classes="mode-btn")
-
                 yield SidebarWidget(id="sidebar-info")
 
                 # Git actions in sidebar
@@ -579,6 +573,10 @@ class HomeScreen(Screen[Any]):
 
         # Prompt area
         with Horizontal(id="prompt-area"):
+            # Mode toggle: Plan / Build — click or Tab to switch
+            with Vertical(id="mode-toggle"):
+                yield Button("📋\nPlan", variant="default", id="mode-plan-btn", classes="mode-btn")
+                yield Button("🔨\nBuild", variant="primary", id="mode-build-btn", classes="mode-btn")
             yield ChatInput(
                 id="prompt-input",
                 classes="chat-input",
@@ -1660,6 +1658,48 @@ class HomeScreen(Screen[Any]):
 
     def action_show_models(self) -> None:
         self._show_models()
+
+    def action_toggle_mode(self) -> None:
+        """Toggle between plan and build mode."""
+        if not self.agent:
+            return
+        current = self.agent.config.mode
+        new_mode = "build" if current == "plan" else "plan"
+        self.agent.config.mode = new_mode
+        self._update_mode_buttons()
+        self._update_sidebar()
+        emoji = "🔨 Build" if new_mode == "build" else "📋 Plan"
+        self.notify(f"Mode: {emoji} — {'read/write' if new_mode == 'build' else 'read-only'}")
+
+    @on(Button.Pressed, "#mode-plan-btn")
+    def _on_mode_plan(self) -> None:
+        if self.agent:
+            self.agent.config.mode = "plan"
+            self._update_mode_buttons()
+            self._update_sidebar()
+            self.notify("Mode: 📋 Plan — read-only")
+
+    @on(Button.Pressed, "#mode-build-btn")
+    def _on_mode_build(self) -> None:
+        if self.agent:
+            self.agent.config.mode = "build"
+            self._update_mode_buttons()
+            self._update_sidebar()
+            self.notify("Mode: 🔨 Build — read/write")
+
+    def _update_mode_buttons(self) -> None:
+        """Update mode button variants based on current mode."""
+        if not self.agent:
+            return
+        mode = self.agent.config.mode
+        plan_btn = self.query_one("#mode-plan-btn", Button)
+        build_btn = self.query_one("#mode-build-btn", Button)
+        if mode == "plan":
+            plan_btn.variant = "primary"
+            build_btn.variant = "default"
+        else:
+            plan_btn.variant = "default"
+            build_btn.variant = "primary"
 
     def action_focus_prompt(self) -> None:
         self.query_one("#prompt-input", ChatInput).focus()
