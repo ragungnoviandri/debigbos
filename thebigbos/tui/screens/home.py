@@ -40,18 +40,15 @@ from textual.widgets import (
     RichLog,
     Select,
     Static,
-    TextArea,
 )
 
 from ..keymap import KeymapRegistry
 
 
-class ChatInput(TextArea):
-    """Multi-line input. Enter=Send, Ctrl+J=newline."""
+class ChatInput(Input):
+    """Chat input. Enter=send, Ctrl+J=newline."""
 
-    BINDINGS = [
-        ("ctrl+j", "newline", "New Line"),
-    ]
+    BINDINGS = [("ctrl+j", "insert_newline", "New Line")]
 
     class Submitted(Message):
         control = None
@@ -59,23 +56,15 @@ class ChatInput(TextArea):
             super().__init__()
             self.text = text
 
-    def on_mount(self) -> None:
-        self.styles.max_height = 6
-        self.border_title = "Enter=Send  Ctrl+J=newline"
+    def action_submit(self) -> None:
+        text = self.value.strip()
+        if text:
+            self.post_message(self.Submitted(text))
+            self.value = ""
 
-    def _on_key(self, event) -> None:
-        if event.key == "enter":
-            event.prevent_default()
-            text = self.text.strip()
-            if text:
-                self.clear()
-                self.post_message(ChatInput.Submitted(text))
-        else:
-            super()._on_key(event)
-
-    def action_newline(self) -> None:
-        """Insert a newline at cursor position."""
-        self.insert("\n")
+    def action_insert_newline(self) -> None:
+        self.value += "\n"
+        self.cursor_position = len(self.value)
 
 
 class StatusBar(Static):
@@ -340,7 +329,7 @@ class HomeScreen(Screen[Any]):
             except asyncio.TimeoutError:
                 response_area.write("\n[yellow]Init timed out. Agent may be unavailable.[/yellow]")
                 self._initialized = True
-                input_widget.text = ""
+                input_widget.value = ""
                 return
             except Exception as e:
                 response_area.write(f"\n[red]Init error: {e}[/red]")
@@ -597,9 +586,9 @@ class HomeScreen(Screen[Any]):
         if isinstance(event, ChatInput.Submitted):
             user_input = event.text.strip()
         else:
-            user_input = input_widget.text.strip()
+            user_input = input_widget.value.strip()
             if user_input:
-                input_widget.clear()
+                input_widget.value = ""
 
         if not user_input:
             return
