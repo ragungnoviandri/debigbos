@@ -506,6 +506,12 @@ class BigBosAgent:
             yield "Error: No active provider configured."
             return
 
+        self._emit("api_info", json.dumps({
+            "provider": self.config.active_provider or provider.name,
+            "model": self.config.active_model,
+            "endpoint": getattr(provider, "base_url", "unknown"),
+        }))
+
         tool_schemas = self.tools.get_schemas()
         options = ModelOptions(
             model=self.config.active_model,
@@ -523,8 +529,14 @@ class BigBosAgent:
             try:
                 response = await provider.chat(session.to_llm_format(), tool_schemas, options)
             except Exception as e:
+                self._emit("api_error", str(e)[:200])
                 yield f"\n[Error: {e}]"
                 break
+
+            # Check for API-level errors in the response
+            if response.finish_reason == "error":
+                self._emit("api_error", response.content[:200])
+                yield response.content
 
             # —— Reasoning first ——
             if response.reasoning_content:

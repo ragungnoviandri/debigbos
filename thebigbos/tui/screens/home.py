@@ -78,7 +78,7 @@ class ChatInput(TextArea):
 
 
 class StatusBar(Static):
-    """Bottom status bar like Hermes — model, context, timing."""
+    """Bottom status bar — model, context, timing, API debug."""
 
     model: reactive[str] = reactive("")
     provider: reactive[str] = reactive("")
@@ -86,8 +86,12 @@ class StatusBar(Static):
     mode: reactive[str] = reactive("build")
     elapsed: reactive[float] = reactive(0)
     thinking: reactive[bool] = reactive(False)
+    api_info: reactive[str] = reactive("")
+    api_error: reactive[str] = reactive("")
 
     def render(self) -> str:
+        lines = []
+        # Line 1: standard status
         parts = []
         if self.provider and self.model:
             parts.append(f" {self.provider}/{self.model}")
@@ -99,7 +103,14 @@ class StatusBar(Static):
             parts.append(f"{self.elapsed:.0f}s")
         if self.thinking:
             parts.append("[yellow]thinking...[/yellow]")
-        return " │ ".join(parts)
+        lines.append(" │ ".join(parts))
+
+        # Line 2: API debug (only when there's info)
+        if self.api_info:
+            lines.append(f" [dim]API: {self.api_info}[/dim]")
+        if self.api_error:
+            lines.append(f" [red]ERR: {self.api_error}[/red]")
+        return "\n".join(lines)
 
     @staticmethod
     def _make_bar(pct: int, width: int = 8) -> str:
@@ -377,6 +388,20 @@ class HomeScreen(Screen[Any]):
         if event_type == "thinking":
             self._thinking = True
             self._update_sidebar()
+
+        elif event_type == "api_info":
+            try:
+                info = json.loads(data)
+                status_bar = self.query_one("#status-bar", StatusBar)
+                status_bar.api_info = f"{info.get('provider','')}/{info.get('model','')} -> {info.get('endpoint','')}"
+            except Exception:
+                pass
+
+        elif event_type == "api_error":
+            status_bar = self.query_one("#status-bar", StatusBar)
+            status_bar.api_error = data[:150]
+            status_bar.api_info = ""
+            self._thinking = False
 
         elif event_type == "reasoning":
             # Model's reasoning/thinking — already streamed inline via RichLog
