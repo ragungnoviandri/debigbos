@@ -1,0 +1,135 @@
+"""Auto-updater — checks GitHub for new versions on startup."""
+
+import json
+import os
+import subprocess
+import time
+from pathlib import Path
+from typing import Optional
+
+
+REPO_OWNER = "ragungnoviandri"
+REPO_NAME = "thebigbos"
+CHECK_INTERVAL = 86400  # 24 hours between checks
+
+
+class Updater:
+    """Handles version checking and git-pull updates."""
+
+    def __init__(self):
+        self.repo_path = self._find_repo()
+        self.cache_file = Path.home() / ".config" / "thebigbos" / ".update_cache"
+
+    def _find_repo(self) -> Optional[Path]:
+        """Find the git repository path."""
+        candidates = [
+            Path(os.environ.get("THEBIGBOS_HOME", "")) / "repo",
+            Path.home() / ".local" / "share" / "thebigbos" / "repo",
+        ]
+        for c in candidates:
+            if (c / ".git").exists():
+                return c
+        return None
+
+    def should_check(self) -> bool:
+        """Check if enough time has passed since last check."""
+        if not self.cache_file.exists():
+            return True
+        try:
+            data = json.loads(self.cache_file.read_text())
+            last_check = data.get("last_check", 0)
+            return (time.time() - last_check) > CHECK_INTERVAL
+        except Exception:
+            return True
+
+    def get_local_version(self) -> str:
+        """Get local version from __init__.py."""
+        try:
+            if self.repo_path:
+                init_file = self.repo_path / "thebigbos" / "__init__.py"
+                if init_file.exists():
+                    content = init_file.read_text()
+                    for line in content.split("\n"):
+                        if line.startswith("__version__"):
+                            return line.split("=")[1].strip().strip('"').strip("'")
+        except Exception:
+            pass
+        return "0.0.0"
+
+    def get_remote_version(self) -> Optional[str]:
+        """Get latest version from GitHub API."""
+        try:
+            import urllib.request
+            url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
+            req = urllib.request.Request(url)
+            req.add_header("User-Agent", "TheBigBos-Updater")
+            req.add_header("Accept", "application/vnd.github.v3+json")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read())
+                return data.get("tag_name", "").lstrip("v")
+        except Exception:
+            return None
+
+    def version_newer(self, remote: str, local: str) -> bool:
+        """Compare semantic versions."""
+        def parse(v):
+            try:
+                return tuple(int(x) for x in v.split("."))
+            except Exception:
+                return (0, 0, 0)
+        return parse(remote) > parse(local)
+
+    def check(self) -> Optional[str]:
+        """Check for updates. Returns new version string or None."""
+        if not self.repo_path:
+            return None
+        if not self.should_check():
+            return None
+
+        local = self.get_local_version()
+        remote = self.get_remote_version()
+
+        # Save check time
+        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        self.cache_file.write_text(json.dumps({"last_check": time.time()}))
+
+        if remote and self.version_newer(remote, local):
+            return remote
+        return None
+
+    def update(self) -> bool:
+        """Pull latest from git and reinstall deps. Returns True if updated."""
+        if not self.repo_path:
+            return False
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.repo_path), "pull", "origin", "main"],
+                capture_output=True, text=True, timeout=30
+            )
+            if "Already up to date" in result.stdout:
+                return False
+
+            # Reinstall deps
+            venv = self.repo_path.parent / "venv"
+            pip = venv / "bin" / "pip" if os.name != "nt" else venv / "Scripts" / "pip.exe"
+            if pip.exists():
+                subprocess.run(
+                    [str(pip), "install", "-e", str(self.repo_path), "--quiet"],
+                    timeout=60
+                )
+            return True
+        except Exception:
+            return False
+
+    def get_current_git_ref(self) -> str:
+        """Get current git commit short hash."""
+        if not self.repo_path:
+            return "unknown"
+        try:
+            result = subprocess.run(
+                ["git", "-C", str(self.repo_path), "rev-parse", "--short", "HEAD"],
+                capture_output=True, text=True, timeout=5
+            )
+            return result.stdout.strip()
+        except Exception:
+            return "unknown"

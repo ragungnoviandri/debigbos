@@ -1,0 +1,107 @@
+"""Ollama provider implementation (OpenAI-compatible endpoint)."""
+
+from typing import Any, AsyncIterator
+
+from .provider import Message, ModelOptions, ModelProvider, ModelResponse
+from ..config.manager import ProviderConfig
+
+
+class OllamaProvider(ModelProvider):
+    """Ollama local model provider via OpenAI-compatible API."""
+
+    name = "ollama"
+
+    def __init__(self, config: ProviderConfig):
+        self.config = config
+        self.base_url = (config.base_url or "http://localhost:11434/v1").rstrip("/")
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            from openai import AsyncOpenAI
+            self._client = AsyncOpenAI(
+                api_key="ollama",
+                base_url=self.base_url,
+                timeout=self.config.timeout,
+            )
+        return self._client
+
+    async def chat(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        options: ModelOptions | None = None,
+    ) -> ModelResponse:
+        opts = options or ModelOptions(model=self.config.default_model)
+        formatted = self._format_messages(messages)
+
+        kwargs: dict[str, Any] = {
+            "model": opts.model,
+            "messages": formatted,
+            "max_tokens": min(opts.max_tokens, 2048),
+            "temperature": opts.temperature,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        import json
+
+        try:
+            response = await self.client.chat.completions.create(**kwargs)
+            choice = response.choices[0]
+
+            tool_calls = []
+            if choice.message.tool_calls:
+                for tc in choice.message.tool_calls:
+                    try:
+                        args = json.loads(tc.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {}
+                    tool_calls.append(ToolCall(id=tc.id, name=tc.function.name, arguments=args))
+
+            return ModelResponse(
+                content=choice.message.content or "",
+                tool_calls=tool_calls,
+                finish_reason=choice.finish_reason or "stop",
+                usage={},
+            )
+        except Exception as e:
+            return ModelResponse(
+                content=f"[Ollama Error] {e}",
+                finish_reason="error",
+            )
+
+    async def stream_chat(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        options: ModelOptions | None = None,
+    ) -> AsyncIterator[str]:
+        opts = options or ModelOptions(model=self.config.default_model)
+
+        kwargs: dict[str, Any] = {
+            "model": opts.model,
+            "messages": self._format_messages(messages),
+            "max_tokens": min(opts.max_tokens, 2048),
+            "temperature": opts.temperature,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        stream = await self.client.chat.completions.create(**kwargs)
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+    def _format_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
+        formatted = []
+        for m in messages:
+            msg: dict[str, Any] = {"role": m.role, "content": m.content}
+            if m.tool_call_id:
+                msg["tool_call_id"] = m.tool_call_id
+            if m.name:
+                msg["name"] = m.name
+            formatted.append(msg)
+        return formatted

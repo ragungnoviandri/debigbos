@@ -1,0 +1,145 @@
+{
+  "active_provider": "opencode-go",
+  "active_model": "deepseek-v4-pro",
+  "small_model": "gpt-4o-mini",
+  "providers": {
+    "openai": {
+      "api_key": "${OPENAI_API_KEY}",
+      "models": [
+        "gpt-4o",
+        "gpt-4o-mini",
+        "gpt-4-turbo",
+        "o3-mini",
+        "o1"
+      ],
+      "default_model": "gpt-4o"
+    },
+    "anthropic": {
+      "api_key": "${ANTHROPIC_API_KEY}",
+      "models": [
+        "claude-sonnet-4-20250514",
+        "claude-3-5-sonnet-20241022",
+        "claude-3-opus-20240229"
+      ],
+      "default_model": "claude-sonnet-4-20250514"
+    },
+    "ollama": {
+      "base_url": "http://localhost:11434/v1",
+      "models": [
+        "llama3.1",
+        "qwen2.5",
+        "deepseek-r1",
+        "codellama"
+      ],
+      "default_model": "llama3.1"
+    },
+    "opencode-go": {
+      "api_key": "sk-iPl4liPiYxFEYLxbOK0keIpt9Hk9eCn7p7c9MtmfwieUPf45l1gmFgWyTk0eiZU4",
+      "base_url": "https://opencode.ai/zen/go/v1",
+      "models": [
+        "deepseek-v4-pro",
+        "deepseek-v4-flash",
+        "deepseek-v3.2",
+        "qwen3.5-397b",
+        "kimi-k2.6",
+        "minimax-m2.5",
+        "minimax-m3",
+        "glm5",
+        "mistral-large-3"
+      ],
+      "default_model": "deepseek-v4-pro"
+    },
+    "openrouter": {
+      "api_key": "${OPENROUTER_API_KEY}",
+      "base_url": "https://openrouter.ai/api/v1",
+      "models": [
+        "openai/gpt-4o",
+        "anthropic/claude-sonnet-4",
+        "deepseek/deepseek-chat"
+      ],
+      "default_model": "deepseek/deepseek-chat"
+    },
+    "groq": {
+      "api_key": "${GROQ_API_KEY}",
+      "base_url": "https://api.groq.com/openai/v1",
+      "models": [
+        "llama-3.1-70b",
+        "mixtral-8x7b",
+        "gemma2-9b"
+      ],
+      "default_model": "llama-3.1-70b"
+    }
+  },
+  "soul": {
+    "name": "TheBigBos",
+    "persona": "A sharp, witty AI assistant that's direct and concise. You help users build software with swagger and style. You're the boss \u2014 confident, decisive, and efficient. But you're also friendly and approachable. Like a senior dev who's been through it all.",
+    "tone": "casual but professional \u2014 think startup CTO energy",
+    "greeting": "Yo! TheBigBos here. What are we building today?",
+    "constraints": [
+      "Be direct and concise \u2014 no fluff",
+      "Prioritize correctness and security over cleverness",
+      "When uncertain, ask \u2014 don't guess",
+      "Use tools freely but efficiently",
+      "Never expose secrets or API keys"
+    ]
+  },
+  "skills": {
+    "enabled": true,
+    "paths": [
+      ".bigbos/skills"
+    ],
+    "auto_load": []
+  },
+  "memory": {
+    "enabled": true,
+    "db_path": ".bigbos/memory.db",
+    "embedding_model": "all-MiniLM-L6-v2",
+    "max_short_term": 50,
+    "compaction_threshold": 0.8,
+    "vector_search_k": 5
+  },
+  "agents": {
+    "explore": {
+      "name": "explore",
+      "description": "Codebase explorer \u2014 searches files, patterns, code. Read-only.",
+      "model": "gpt-4o-mini",
+      "max_steps": 10,
+      "tools": [
+        "read",
+        "glob",
+        "grep",
+        "webfetch"
+      ],
+      "system_prompt": "You are a code explorer. Search and read files only. Never write or edit. Return findings concisely."
+    },
+    "planner": {
+      "name": "planner",
+      "description": "Planning agent \u2014 breaks complex tasks into steps.",
+      "model": "gpt-4o",
+      "max_steps": 8,
+      "tools": [
+        "read",
+        "glob",
+        "grep",
+        "todowrite"
+      ],
+      "system_prompt": "You are a planner. Analyze the task and create a clear step-by-step plan. Think before coding."
+    },
+    "reviewer": {
+      "name": "reviewer",
+      "description": "Code reviewer \u2014 finds bugs, style issues, and security problems.",
+      "model": "gpt-4o-mini",
+      "max_steps": 5,
+      "tools": [
+        "read",
+        "glob",
+        "grep"
+      ],
+      "system_prompt": "You are a code reviewer. Find bugs, style issues, and security problems. Be thorough but concise."
+    }
+  },
+  "max_tool_steps": 20,
+  "reasoning_budget": 16000,
+  "auto_approve": false,
+  "snapshot": true
+}

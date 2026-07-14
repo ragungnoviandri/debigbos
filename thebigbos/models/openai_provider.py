@@ -1,0 +1,151 @@
+"""OpenAI provider implementation."""
+
+import json
+from typing import Any, AsyncIterator
+
+from openai import AsyncOpenAI
+
+from ..config.manager import ProviderConfig
+from .provider import Message, ModelOptions, ModelProvider, ModelResponse, ToolCall
+
+
+class OpenAIProvider(ModelProvider):
+    """OpenAI-compatible provider (OpenAI, Azure, etc.)."""
+
+    name = "openai"
+
+    def __init__(self, config: ProviderConfig):
+        self.config = config
+        self.client = AsyncOpenAI(
+            api_key=config.api_key,
+            base_url=config.base_url,
+            timeout=config.timeout,
+        )
+
+    async def chat(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        options: ModelOptions | None = None,
+    ) -> ModelResponse:
+        opts = options or ModelOptions(model=self.config.default_model)
+        formatted = self._format_messages(messages)
+
+        kwargs: dict[str, Any] = {
+            "model": opts.model,
+            "messages": formatted,
+            "max_tokens": opts.max_tokens,
+        }
+
+        # Skip temp/top_p for reasoning models (DeepSeek V4, o1/o3, etc.)
+        is_reasoning = any(r in opts.model.lower() for r in ("o1", "o3", "o4", "v4-pro", "v4-flash", "r1", "kimi-k2", "qwen3.5"))
+        if not is_reasoning:
+            kwargs["temperature"] = opts.temperature
+            kwargs["top_p"] = opts.top_p
+
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+
+        if opts.reasoning_effort and opts.model.startswith(("o1", "o3", "o4")):
+            kwargs["reasoning_effort"] = opts.reasoning_effort
+
+        try:
+            response = await self.client.chat.completions.create(**kwargs)
+        except Exception as e:
+            return ModelResponse(
+                content=f"[API Error] {e}",
+                finish_reason="error",
+            )
+
+        if isinstance(response, str):
+            return ModelResponse(
+                content=f"[API Error] Unexpected response: {response[:500]}",
+                finish_reason="error",
+            )
+
+        choice = response.choices[0]
+
+        tool_calls = []
+        if choice.message.tool_calls:
+            for tc in choice.message.tool_calls:
+                try:
+                    args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    args = {}
+                tool_calls.append(ToolCall(id=tc.id, name=tc.function.name, arguments=args))
+
+        # Some reasoning models return content=None with reasoning_content
+        content = choice.message.content or ""
+        if not content and hasattr(choice.message, "reasoning_content"):
+            rc = choice.message.reasoning_content
+            if rc:
+                content = rc
+
+        return ModelResponse(
+            content=content,
+            tool_calls=tool_calls,
+            finish_reason=choice.finish_reason or "stop",
+            usage={
+                "input": response.usage.prompt_tokens if response.usage else 0,
+                "output": response.usage.completion_tokens if response.usage else 0,
+                "total": response.usage.total_tokens if response.usage else 0,
+            },
+        )
+
+    async def stream_chat(
+        self,
+        messages: list[Message],
+        tools: list[dict[str, Any]],
+        options: ModelOptions | None = None,
+    ) -> AsyncIterator[str]:
+        opts = options or ModelOptions(model=self.config.default_model)
+        formatted = self._format_messages(messages)
+
+        kwargs: dict[str, Any] = {
+            "model": opts.model,
+            "messages": formatted,
+            "max_tokens": opts.max_tokens,
+            "temperature": opts.temperature,
+            "top_p": opts.top_p,
+            "stream": True,
+        }
+        if tools:
+            kwargs["tools"] = tools
+
+        stream = await self.client.chat.completions.create(**kwargs)
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+    def _format_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
+        """Convert internal messages to OpenAI format."""
+        formatted = []
+        for m in messages:
+            msg: dict[str, Any] = {"role": m.role, "content": m.content}
+            if m.tool_calls:
+                msg["tool_calls"] = [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.name, "arguments": json.dumps(tc.arguments)},
+                    }
+                    for tc in m.tool_calls
+                ]
+            if m.tool_call_id:
+                msg["tool_call_id"] = m.tool_call_id
+            if m.name:
+                msg["name"] = m.name
+            formatted.append(msg)
+        return formatted
+
+    def count_tokens(self, messages: list[Message]) -> int:
+        try:
+            import tiktoken
+            enc = tiktoken.encoding_for_model("gpt-4o")
+            total = 0
+            for m in messages:
+                total += len(enc.encode(m.content)) + 4
+            return total
+        except Exception:
+            return super().count_tokens(messages)
