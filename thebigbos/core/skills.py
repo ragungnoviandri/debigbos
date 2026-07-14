@@ -32,13 +32,25 @@ class SkillManager:
 
     def __init__(self, workspace: Path, extra_paths: list[str] | None = None):
         self.workspace = workspace
-        self.search_paths: list[Path] = [workspace / ".bigbos" / "skills"]
+        self.search_paths: list[Path] = [
+            workspace / ".bigbos" / "skills",          # Per-project skills
+        ]
+
+        # Global skills (~/.config/thebigbos/skills)
+        global_skills = Path.home() / ".config" / "thebigbos" / "skills"
+        if global_skills.exists():
+            self.search_paths.append(global_skills)
+
         if extra_paths:
             for p in extra_paths:
-                path = Path(p)
+                # Expand ~ to home directory
+                p_expanded = p
+                if p.startswith("~"):
+                    p_expanded = str(Path.home() / p[2:])
+                path = Path(p_expanded)
                 if not path.is_absolute():
                     path = workspace / path
-                if path.exists():
+                if path.exists() and path not in self.search_paths:
                     self.search_paths.append(path)
 
         self._skills: dict[str, Skill] = {}

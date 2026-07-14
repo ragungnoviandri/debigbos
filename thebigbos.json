@@ -86,7 +86,8 @@
   "skills": {
     "enabled": true,
     "paths": [
-      ".bigbos/skills"
+      ".bigbos/skills",
+      "~/.config/thebigbos/skills"
     ],
     "auto_load": []
   },

@@ -125,6 +125,19 @@ if (-not (Test-Path $configFile)) {
     Write-Host "  Created default config: $configFile" -ForegroundColor Green
 }
 
+# Copy bundled skills to global config
+if (Test-Path "$InstallDir\repo\.bigbos\skills") {
+    $skillCount = 0
+    Get-ChildItem -Path "$InstallDir\repo\.bigbos\skills" -Directory | ForEach-Object {
+        $dest = "$ConfigDir\skills\$($_.Name)"
+        if (-not (Test-Path $dest)) {
+            Copy-Item -Path $_.FullName -Destination $dest -Recurse -Force
+            $skillCount++
+        }
+    }
+    Write-Host "  Installed $skillCount skills to $ConfigDir\skills" -ForegroundColor Green
+}
+
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host "  TheBigBos installed!" -ForegroundColor Green

@@ -90,13 +90,26 @@ chmod +x "$INSTALL_DIR/bin/thebigbos"
 ln -sf "$INSTALL_DIR/bin/thebigbos" "$BIN_DIR/thebigbos"
 echo "  Wrapper: $BIN_DIR/thebigbos"
 
-# 6. Default config
-echo "[6/6] Setting up config..."
+# 6. Default config + skills
+echo "[6/6] Setting up config and skills..."
 if [ ! -f "$CONFIG_DIR/config.json" ]; then
     cp "$INSTALL_DIR/repo/thebigbos.json" "$CONFIG_DIR/config.json"
     echo "  Created default config: $CONFIG_DIR/config.json"
 else
     echo "  Config already exists"
+fi
+
+# Copy bundled skills to global config
+if [ -d "$INSTALL_DIR/repo/.bigbos/skills" ]; then
+    skill_count=0
+    for skill_dir in "$INSTALL_DIR/repo/.bigbos/skills"/*/; do
+        skill_name=$(basename "$skill_dir")
+        if [ ! -d "$CONFIG_DIR/skills/$skill_name" ]; then
+            cp -r "$skill_dir" "$CONFIG_DIR/skills/$skill_name"
+            skill_count=$((skill_count + 1))
+        fi
+    done
+    echo "  Installed $skill_count skills to $CONFIG_DIR/skills"
 fi
 
 # PATH reminder
