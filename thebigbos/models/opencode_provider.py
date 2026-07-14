@@ -47,6 +47,12 @@ class OpencodeGoProvider(ModelProvider):
             body["tools"] = tools
             body["tool_choice"] = "auto"
 
+        # Enable thinking/reasoning for supported models
+        if opts.thinking_budget and opts.thinking_budget > 0:
+            body["thinking"] = {"type": "enabled", "budget_tokens": opts.thinking_budget}
+        if opts.reasoning_effort:
+            body["reasoning_effort"] = opts.reasoning_effort
+
         url = f"{self.base_url}/chat/completions"
         try:
             response = await self.client.post(url, json=body)
@@ -104,6 +110,13 @@ class OpencodeGoProvider(ModelProvider):
         }
         if tools:
             body["tools"] = tools
+            body["tool_choice"] = "auto"
+
+        # Enable thinking/reasoning for supported models
+        if opts.thinking_budget and opts.thinking_budget > 0:
+            body["thinking"] = {"type": "enabled", "budget_tokens": opts.thinking_budget}
+        if opts.reasoning_effort:
+            body["reasoning_effort"] = opts.reasoning_effort
 
         url = f"{self.base_url}/chat/completions"
         try:
@@ -117,12 +130,11 @@ class OpencodeGoProvider(ModelProvider):
                             chunk = json.loads(data_str)
                             delta = chunk.get("choices", [{}])[0].get("delta", {})
                             content = delta.get("content", "")
+                            reasoning = delta.get("reasoning_content", "")
+                            if reasoning:
+                                yield f"[reasoning]{reasoning}[/reasoning]"
                             if content:
                                 yield content
-                            # Some reasoning models put text in reasoning_content, not content
-                            reasoning = delta.get("reasoning_content", "")
-                            if reasoning and not content:
-                                pass  # Don't yield reasoning — it's internal thinking
                         except json.JSONDecodeError:
                             continue
         except Exception as e:

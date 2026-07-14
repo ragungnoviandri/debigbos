@@ -382,8 +382,10 @@ class BigBosAgent:
         tool_schemas = self.tools.get_schemas()
         options = ModelOptions(
             model=self.config.active_model,
-            reasoning_effort="medium" if self.config.active_model.startswith(("o1", "o3")) else None,
-            thinking_budget=self.config.reasoning_budget,
+            reasoning_effort="medium" if self.config.active_model.startswith(("o1", "o3", "o4")) else None,
+            thinking_budget=self.config.reasoning_budget if any(
+                r in self.config.active_model.lower() for r in ("deepseek", "sonnet", "opus", "claude")
+            ) else None,
             max_tokens=4096,
         )
 
@@ -460,7 +462,7 @@ class BigBosAgent:
         return final_response.strip() or "(thinking...)"
 
     async def stream_chat(self, user_input: str) -> AsyncIterator[str]:
-        """Streamed version of chat — always starts fresh session for headless."""
+        """Streamed chat — yields reasoning first (dim/italic), then content in sentence chunks."""
         if not self.sessions.active:
             self.start_session()
 
@@ -481,8 +483,10 @@ class BigBosAgent:
         tool_schemas = self.tools.get_schemas()
         options = ModelOptions(
             model=self.config.active_model,
-            reasoning_effort="medium" if self.config.active_model.startswith(("o1", "o3")) else None,
-            thinking_budget=self.config.reasoning_budget,
+            reasoning_effort="medium" if self.config.active_model.startswith(("o1", "o3", "o4")) else None,
+            thinking_budget=self.config.reasoning_budget if any(
+                r in self.config.active_model.lower() for r in ("deepseek", "sonnet", "opus", "claude")
+            ) else None,
             max_tokens=4096,
         )
 
@@ -496,12 +500,26 @@ class BigBosAgent:
                 yield f"\n[Error: {e}]"
                 break
 
+            # —— Reasoning first (full block, dim italic) ——
             if response.reasoning_content:
-                yield f"\n[dim]thinking: {response.reasoning_content[:300]}...[/dim]\n"
+                self._emit("reasoning", response.reasoning_content[:500])
+                # Split into sentence-like chunks for gradual reveal
+                chunks = response.reasoning_content.replace("\n", "\n[dim italic]").split(". ")
+                yield "\n[dim italic]"  # open markup
+                for chunk in chunks:
+                    yield chunk + (". " if chunk != chunks[-1] else "")
+                    await asyncio.sleep(0.03)
+                yield "[/dim italic]\n\n"
 
+            # —— Content in paragraph chunks ——
             if response.content:
-                yield response.content
                 self.memory.save_message(session.id, "assistant", response.content)
+                paragraphs = response.content.split("\n\n")
+                for para in paragraphs:
+                    yield para
+                    if para != paragraphs[-1]:
+                        yield "\n\n"
+                    await asyncio.sleep(0.02)
 
             assistant_msg = Message(
                 role="assistant",
@@ -514,7 +532,7 @@ class BigBosAgent:
                 break
 
             for tc in response.tool_calls:
-                yield f"\n[dim]Tool: {tc.name}...[/dim]\n"
+                yield f"\n\n[dim]🔧 {tc.name}...[/dim]\n"
                 result = await self.tools.execute(tc.name, tc.arguments)
                 self.memory.save_message(session.id, "tool", result, tool_call_id=tc.id, name=tc.name)
                 session.add_message(Message(role="tool", content=result, tool_call_id=tc.id, name=tc.name))

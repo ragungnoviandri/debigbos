@@ -50,6 +50,7 @@ class AnthropicProvider(ModelProvider):
 
         tool_calls = []
         text_content = ""
+        reasoning_content = ""
 
         for block in response.content:
             if block.type == "text":
@@ -60,9 +61,14 @@ class AnthropicProvider(ModelProvider):
                     name=block.name,
                     arguments=block.input or {},
                 ))
+            elif block.type == "thinking":
+                reasoning_content += block.thinking
+            elif block.type == "redacted_thinking":
+                reasoning_content += f"[redacted: {block.data}]"
 
         return ModelResponse(
             content=text_content,
+            reasoning_content=reasoning_content,
             tool_calls=tool_calls,
             finish_reason=response.stop_reason or "end_turn",
             usage={

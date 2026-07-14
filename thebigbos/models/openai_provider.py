@@ -77,13 +77,13 @@ class OpenAIProvider(ModelProvider):
 
         # Some reasoning models return content=None with reasoning_content
         content = choice.message.content or ""
-        if not content and hasattr(choice.message, "reasoning_content"):
-            rc = choice.message.reasoning_content
-            if rc:
-                content = rc
+        reasoning_content = ""
+        if hasattr(choice.message, "reasoning_content") and choice.message.reasoning_content:
+            reasoning_content = choice.message.reasoning_content
 
         return ModelResponse(
             content=content,
+            reasoning_content=reasoning_content,
             tool_calls=tool_calls,
             finish_reason=choice.finish_reason or "stop",
             usage={

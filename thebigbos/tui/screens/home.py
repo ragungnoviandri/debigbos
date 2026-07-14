@@ -313,18 +313,16 @@ class HomeScreen(Screen[Any]):
         if event_type == "thinking":
             self._thinking = True
             self._update_sidebar()
-            response_area.write("\n[dim italic]...thinking...[/dim italic]")
 
         elif event_type == "reasoning":
-            # Show model's reasoning/thinking in a collapsible style
+            # Model's reasoning/thinking — already streamed inline via RichLog
+            # Just toggle thinking state off
             self._thinking = False
             self._update_sidebar()
-            response_area.write(f"\n[dim]reasoning: {data[:200]}...[/dim]")
 
         elif event_type == "response":
             self._thinking = False
             self._update_sidebar()
-            response_area.write(data)
 
         elif event_type == "tool_executing":
             try:
@@ -335,8 +333,7 @@ class HomeScreen(Screen[Any]):
                         "args": tool.get("args", {}),
                         "status": "running",
                     })
-                    response_area.write(f"\n[dim]Tool: {tool['name']}({json.dumps(tool.get('args', {}))[:60]})[/dim]")
-                tool_log.tool_entries = list(self._tool_log)
+                    response_area.write(f"\n[dim]🔧 {tool['name']}({json.dumps(tool.get('args', {}))[:60]})[/dim]")
                 tool_log.tool_entries = list(self._tool_log)
                 tool_log.refresh(layout=True)
             except Exception:
@@ -354,9 +351,6 @@ class HomeScreen(Screen[Any]):
                 tool_log.refresh(layout=True)
             except Exception:
                 pass
-
-        elif event_type == "thinking":
-            response_area.write("[dim]...[/dim]")
 
         elif event_type == "session_started":
             self._update_sidebar()
