@@ -12,6 +12,8 @@ venv/
 
 # TheBigBos runtime
 .bigbos/memory.db
+thebigbos/logs/
+*.log
 
 # IDE
 .vscode/
