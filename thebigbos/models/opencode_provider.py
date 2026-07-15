@@ -64,6 +64,7 @@ class OpencodeGoProvider(ModelProvider):
             "Authorization": "***",
             "Content-Type": "application/json",
         }
+        body_ref = dict(body)  # reference for elapsed time
         logger.log_request(
             provider="opencode-go",
             model=opts.model,
@@ -71,8 +72,8 @@ class OpencodeGoProvider(ModelProvider):
             url=url,
             headers=safe_headers,
             body=body,
+            call_ref=body_ref,
         )
-        body_ref = dict(body)  # reference for elapsed time
 
         try:
             response = await self.client.post(url, json=body)

@@ -66,7 +66,6 @@ class Config(BaseModel):
     """Root configuration."""
     active_provider: str = "openai"
     active_model: str = "gpt-4o"
-    small_model: str = "gpt-4o-mini"
     providers: dict[str, ProviderConfig] = Field(default_factory=dict)
     soul: SoulConfig = Field(default_factory=SoulConfig)
     skills: SkillConfig = Field(default_factory=SkillConfig)

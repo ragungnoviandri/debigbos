@@ -59,6 +59,7 @@ class OllamaProvider(ModelProvider):
             headers={"Authorization": "ollama", "Content-Type": "application/json"},
             body={"model": opts.model, "messages": formatted,
                    "max_tokens": min(opts.max_tokens, 2048), "tools": tools},
+            call_ref=kwargs,
         )
 
         try:

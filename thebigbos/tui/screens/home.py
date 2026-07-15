@@ -793,11 +793,6 @@ class HomeScreen(Screen[Any]):
                 models = cfg.models
         if models:
             self.agent.config.active_model = models[0]
-            # Also set small model to something reasonable
-            if len(models) > 1 and "mini" in models[1].lower():
-                self.agent.config.small_model = models[1]
-            elif len(models) > 1:
-                self.agent.config.small_model = models[1]
 
         # Repopulate model dropdown
         self._populate_model_select(new_provider)
@@ -1427,7 +1422,7 @@ class HomeScreen(Screen[Any]):
                         [Message(role="user", content=prompt)],
                         [],
                         ModelOptions(
-                            model=agent_ref._resolve_small_model() if agent_ref else "deepseek-v4-flash",
+                            model=agent_ref.config.active_model if agent_ref else "deepseek-v4-flash",
                             max_tokens=80,
                         ),
                     )
