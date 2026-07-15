@@ -144,6 +144,41 @@ class GitWorkspace:
             combined = combined[:4000] + "\n... [truncated]"
         return combined
 
+    def diff_summary(self) -> str:
+        """Return a compact summary for AI commit message generation.
+        
+        Includes: branch name, file list with status, followed by truncated diff.
+        """
+        if not self.is_repo:
+            return ""
+        parts = []
+        branch = self.current_branch()
+        parts.append(f"branch: {branch}")
+
+        # File list with status codes
+        porcelain = self.status_porcelain()
+        if porcelain:
+            parts.append("files:")
+            for line in porcelain[:30]:
+                parts.append(f"  {line}")
+            if len(porcelain) > 30:
+                parts.append(f"  ... and {len(porcelain) - 30} more files")
+
+        # Diff content (smart truncate: keep first 2500 chars)
+        staged = self.diff_staged()
+        unstaged = self.diff_unstaged()
+        diff = ""
+        if staged:
+            diff += f"--STAGED--\n{staged}\n"
+        if unstaged:
+            diff += f"--UNSTAGED--\n{unstaged}"
+        if diff:
+            if len(diff) > 2500:
+                diff = diff[:2500] + "\n... [truncated]"
+            parts.append(f"diff:\n{diff}")
+
+        return "\n".join(parts)
+
     def current_branch(self) -> str:
         """Get current branch name."""
         if not self.is_repo:

@@ -1400,8 +1400,8 @@ class HomeScreen(Screen[Any]):
                 auto_btn.label = "Generating..."
 
                 try:
-                    diff_text = git_ref.diff_all() if git_ref else ""
-                    if not diff_text:
+                    diff_text = git_ref.diff_summary() if git_ref else ""
+                    if not diff_text or diff_text.strip().startswith("branch:") and "\ndiff:" not in diff_text:
                         input_widget.value = "chore: update"
                         return
 
@@ -1412,11 +1412,14 @@ class HomeScreen(Screen[Any]):
                         return
 
                     prompt = (
-                        "Write a concise git commit message for this diff. "
+                        "Write a SHORT git commit message for the changes below. "
                         "Use conventional commits: feat:, fix:, chore:, refactor:, docs:, style:, test:.\n"
-                        "Rules: single line, max 72 chars, present tense, imperative mood, "
-                        "be specific about what changed. Output ONLY the message, no quotes.\n\n"
-                        f"Diff:\n{diff_text}"
+                        "Rules:\n"
+                        "- Single line, max 72 chars, present tense, imperative mood.\n"
+                        "- Be SPECIFIC — mention the file or feature changed, not vague like 'update code'.\n"
+                        "- If multiple files, summarize the main change, not every file.\n"
+                        "- Output ONLY the commit message, no quotes, no markdown, no explanation.\n\n"
+                        f"{diff_text}"
                     )
 
                     response = await provider.chat(
