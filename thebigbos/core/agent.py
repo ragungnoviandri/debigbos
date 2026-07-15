@@ -96,6 +96,12 @@ class BigBosAgent:
         # Don't auto-load last session — user picks or starts fresh
         # _load_previous_session() is kept for manual use but not called here
 
+        # Auto-load last session if configured
+        if self.config.memory.auto_load_session:
+            sessions = self.memory.list_sessions(limit=1)
+            if sessions:
+                self.continue_session(sessions[0]["id"])
+
     def _ensure_sessions_imported(self) -> None:
         """Lazy-load external sessions only when needed."""
         if not self._sessions_imported:
@@ -244,9 +250,11 @@ class BigBosAgent:
     def continue_session(self, session_id: str) -> Session | None:
         """Continue a session — load from TheBigBos DB or external source on demand.
 
-        Uses register_session() so the session ID is properly tracked in the
-        sessions dict. If the session is already loaded in memory, just
-        switches to it without re-loading.
+        Resume mode (from memory.resume_mode config):
+          - "clean": user + assistant messages only, tool outputs skipped
+          - "full": all messages including tool outputs
+
+        Uses register_session() so the session ID is properly tracked.
         """
         # If already loaded in memory, just switch
         if session_id in self.sessions.sessions:
@@ -258,25 +266,53 @@ class BigBosAgent:
         session = self.sessions.register_session(session_id)
 
         # Try loading from TheBigBos DB first
-        msgs = self.memory.load_messages(session_id, limit=200)
+        msgs = self.memory.load_messages(session_id, limit=10000)
         if msgs:
-            recent = msgs[-50:]  # Last 50 messages
+            load_limit = self.config.memory.session_load_limit
+            resume_mode = self.config.memory.resume_mode
+
+            if resume_mode == "clean":
+                # Smart resume: user + assistant only, skip tool outputs
+                filtered = [m for m in msgs if m["role"] in ("user", "assistant")]
+                skipped = len(msgs) - len(filtered)
+            else:
+                # "full" — load everything
+                filtered = msgs
+                skipped = 0
+
+            total = len(filtered)
+            if total > load_limit:
+                recent = filtered[-load_limit:]
+            else:
+                recent = filtered
+
+            # Build messages
             for m in recent:
                 session.messages.append(self._db_to_message(m))
-            # Sanitize: strip incomplete tool-call sequences (from abrupt kills)
+
+            # Prepend session summary as system context
+            summary = self.memory.get_session_summary(session_id)
+            parts = []
+            if summary:
+                parts.append(f"[Session summary] {summary}")
+            if total > load_limit:
+                parts.append(f"[Showing last {load_limit} of {total} messages]")
+            if skipped > 0:
+                parts.append(f"[{skipped} tool/reasoning messages hidden — use /resume full to load all]")
+            if parts:
+                session.messages.insert(0, Message(role="system", content="\n".join(parts)))
+
+            # Store metadata
+            session.metadata["_total_db_messages"] = len(msgs)
+            session.metadata["_skipped_tool_msgs"] = skipped
+            session.metadata["_loaded_count"] = len(recent)
+            session.metadata["_resume_mode"] = resume_mode
+
+            # Sanitize: strip incomplete tool-call sequences
             session.messages = self._sanitize_messages(session.messages)
-            if len(msgs) > 50:
-                summary = self.memory.get_session_summary(session_id)
-                if summary:
-                    session.messages.insert(0, Message(
-                        role="system",
-                        content=f"[Previous summary: {summary}]\n[Showing last {len(recent)} of {len(msgs)} messages]"
-                    ))
         elif session_id.startswith("opencode-"):
-            # Load from OpenCode DB on demand
             self._load_opencode_session(session_id, session)
         elif session_id.startswith("hermes-"):
-            # Load from Hermes DB on demand
             self._load_hermes_session(session_id, session)
 
         # Set title from sessions table
@@ -657,7 +693,6 @@ class BigBosAgent:
 
             for tc in response.tool_calls:
                 self._emit("tool_executing", json.dumps([{"name": tc.name, "args": tc.arguments}]))
-                yield f"\n[dim]Tool: {tc.name}({json.dumps(tc.arguments)[:60]})...[/dim]\n"
                 result = await self.tools.execute(tc.name, tc.arguments)
                 self.memory.save_message(session.id, "tool", result, tool_call_id=tc.id, name=tc.name)
                 session.add_message(Message(role="tool", content=result, tool_call_id=tc.id, name=tc.name))
@@ -672,6 +707,9 @@ class BigBosAgent:
         if not session.title:
             session.title = user_input[:50] + ("..." if len(user_input) > 50 else "")
             self.memory.update_session_title(session.id, session.title)
+
+        # Auto-summarize and store medium-term memory
+        await self._auto_summarize(session)
 
     # ——— System prompt ———
 

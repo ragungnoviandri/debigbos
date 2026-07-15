@@ -1104,15 +1104,63 @@ class HomeScreen(Screen[Any]):
         session = self.agent.sessions.active
         if not session or not session.messages:
             return
+
+        resume_mode = session.metadata.get("_resume_mode", "full")
+        skipped = session.metadata.get("_skipped_tool_msgs", 0)
+
         for msg in session.messages:
             if msg.role == "system":
+                content = msg.content
+                # Show compaction summaries and truncation notices
+                if any(kw in content for kw in ("[Context compacted", "[Showing last", "[Session summary", "[skipped", "tool/reasoning")):
+                    response_area.write(f"\n[dim italic]{content}[/dim italic]")
                 continue
             if msg.role == "user":
                 response_area.write(f"\n[bold yellow]You:[/bold yellow] {msg.content[:500]}")
             elif msg.role == "assistant":
                 response_area.write(f"\n[bold cyan]TheBigBos:[/bold cyan] {msg.content[:1000]}")
             elif msg.role == "tool":
-                response_area.write(f"\n[dim]Tool: {msg.content[:200]}[/dim]")
+                # Only show in "full" resume mode
+                if resume_mode != "clean":
+                    response_area.write(f"\n[dim]Tool: {msg.content[:150]}[/dim]")
+
+    async def _load_more_history(self) -> None:
+        """Load more messages from DB into the current session."""
+        response_area = self.query_one("#response-area", ResponseArea)
+        session = self.agent.sessions.active
+        if not session:
+            response_area.write("[yellow]No active session.[/yellow]\n")
+            return
+
+        total = session.metadata.get("_total_db_messages", 0)
+        loaded = session.metadata.get("_loaded_count", len(session.messages))
+        if total == 0 or loaded >= total:
+            response_area.write("[dim]All messages already loaded.[/dim]\n")
+            return
+
+        # Load more — double the loaded count
+        new_limit = min(loaded * 2, total)
+        msgs = self.agent.memory.load_messages(session.id, limit=10000)
+        if not msgs:
+            response_area.write("[yellow]No messages in database.[/yellow]\n")
+            return
+
+        # Rebuild session messages from DB
+        session.messages = []
+        recent = msgs[-new_limit:]
+        for m in recent:
+            session.messages.append(self.agent._db_to_message(m))
+
+        session.metadata["_loaded_count"] = new_limit
+        if new_limit < total:
+            session.messages.insert(0, Message(
+                role="system",
+                content=f"[Showing last {new_limit} of {total} total messages. Use /loadmore to load earlier messages.]",
+            ))
+
+        session.messages = self.agent._sanitize_messages(session.messages)
+        self._load_history()
+        response_area.write(f"\n[green]Loaded {new_limit}/{total} messages.[/green]\n")
 
     async def _handle_chat_input(self, text: str) -> None:
         """Process user input from chat box."""
@@ -1439,6 +1487,24 @@ class HomeScreen(Screen[Any]):
             else:
                 response_area.write("[yellow]No active session to compact.[/yellow]\n")
 
+        elif cmd == "/loadmore":
+            await self._load_more_history()
+
+        elif cmd == "/resume":
+            # Toggle resume mode
+            if self.agent:
+                current = self.agent.config.memory.resume_mode
+                new_mode = "full" if current == "clean" else "clean"
+                self.agent.config.memory.resume_mode = new_mode
+                icons = {"clean": "🧹", "full": "📚"}
+                response_area.write(
+                    f"[green]Resume mode: {icons.get(new_mode, '')} {new_mode}[/green]\n"
+                    f"[dim]Reload session dengan /switch untuk menerapkan.[/dim]\n"
+                )
+
+        elif cmd.startswith("/config memory"):
+            await self._config_memory(cmd)
+
         elif cmd == "/copy":
             self._copy_last_response()
 
@@ -1521,6 +1587,79 @@ class HomeScreen(Screen[Any]):
                 response_area.write(f"[yellow]Unknown command: {cmd}[/yellow]\n")
                 response_area.write("[dim]Type /help for available commands[/dim]\n")
 
+    async def _config_memory(self, cmd: str) -> None:
+        """View or edit memory configuration."""
+        response_area = self.query_one("#response-area", ResponseArea)
+        if not self.agent:
+            return
+
+        mem = self.agent.config.memory
+        args = cmd[14:].strip()  # after "/config memory "
+
+        if not args:
+            # Show current config
+            icons = {"clean": "🧹", "full": "📚"}
+            response_area.write("[bold]Memory Configuration[/bold]\n")
+            response_area.write(f"  [cyan]resume_mode:[/cyan] {icons.get(mem.resume_mode, '')} {mem.resume_mode}\n")
+            response_area.write(f"  [cyan]session_load_limit:[/cyan] {mem.session_load_limit} messages\n")
+            response_area.write(f"  [cyan]auto_load_session:[/cyan] {'✅ on' if mem.auto_load_session else '❌ off'}\n")
+            response_area.write(f"  [cyan]session_keep_days:[/cyan] {mem.session_keep_days} (0=keep all)\n")
+            response_area.write(f"  [cyan]save_reasoning:[/cyan] {'✅ on' if mem.save_reasoning else '❌ off'}\n")
+            response_area.write(f"  [cyan]compaction_threshold:[/cyan] {mem.compaction_threshold:.0%}\n")
+            response_area.write(f"  [cyan]max_short_term:[/cyan] {mem.max_short_term} messages\n")
+            response_area.write("\n[dim]Usage: /config memory <key> <value>[/dim]\n")
+            return
+
+        parts = args.split(maxsplit=1)
+        key = parts[0].lower()
+        val = parts[1].strip().lower() if len(parts) > 1 else ""
+
+        if key == "load":
+            try:
+                mem.session_load_limit = int(val)
+                response_area.write(f"[green]session_load_limit = {mem.session_load_limit}[/green]\n")
+            except ValueError:
+                response_area.write("[yellow]Usage: /config memory load <number>[/yellow]\n")
+
+        elif key == "auto":
+            if val in ("on", "true", "1", "yes"):
+                mem.auto_load_session = True
+            elif val in ("off", "false", "0", "no"):
+                mem.auto_load_session = False
+            else:
+                response_area.write("[yellow]Usage: /config memory auto on|off[/yellow]\n")
+                return
+            response_area.write(f"[green]auto_load_session = {mem.auto_load_session}[/green]\n")
+
+        elif key == "keep":
+            try:
+                mem.session_keep_days = int(val)
+                response_area.write(f"[green]session_keep_days = {mem.session_keep_days}[/green]\n")
+            except ValueError:
+                response_area.write("[yellow]Usage: /config memory keep <days> (0=keep all)[/yellow]\n")
+
+        elif key == "resume":
+            if val in ("clean", "full"):
+                mem.resume_mode = val
+                response_area.write(f"[green]resume_mode = {mem.resume_mode}[/green]\n")
+                response_area.write("[dim]Reload session dengan /switch untuk menerapkan.[/dim]\n")
+            else:
+                response_area.write("[yellow]Usage: /config memory resume clean|full[/yellow]\n")
+
+        elif key == "reasoning":
+            if val in ("on", "true", "1"):
+                mem.save_reasoning = True
+            elif val in ("off", "false", "0"):
+                mem.save_reasoning = False
+            else:
+                response_area.write("[yellow]Usage: /config memory reasoning on|off[/yellow]\n")
+                return
+            response_area.write(f"[green]save_reasoning = {mem.save_reasoning}[/green]\n")
+
+        else:
+            response_area.write(f"[yellow]Unknown key: {key}[/yellow]\n")
+            response_area.write("[dim]Keys: load, auto, keep, resume, reasoning[/dim]\n")
+
     async def _fix_session(self) -> None:
         """Fix corrupted session messages — strip incomplete tool-call sequences."""
         response_area = self.query_one("#response-area", ResponseArea)
@@ -1587,6 +1726,9 @@ class HomeScreen(Screen[Any]):
 | `/model <id>` | Switch active model |
 | `/fix` | Repair corrupted session (after crash) |
 | `/compact` | Manually compact long conversations |
+| `/loadmore` | Load more messages from DB |
+| `/resume` | Toggle resume mode: clean / full |
+| `/config memory` | View/edit memory settings |
 | `/copy` | Copy last response to clipboard |
 | `/remember <key>:<value>` | Store a persistent fact |
 | `/recall [query]` | Search memories (or show all) |

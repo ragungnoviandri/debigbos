@@ -44,6 +44,12 @@ class MemoryConfig(BaseModel):
     max_short_term: int = 50
     compaction_threshold: float = 0.8
     vector_search_k: int = 5
+    # Session resume controls
+    session_load_limit: int = 200       # Max messages to load when resuming
+    auto_load_session: bool = False     # Auto-load last session on startup
+    session_keep_days: int = 0          # Auto-clean sessions older than N days (0=keep all)
+    resume_mode: str = "clean"          # "full" | "clean" (user+assistant only)
+    save_reasoning: bool = False        # Persist thinking/reasoning to DB
 
 
 class AgentConfig(BaseModel):
