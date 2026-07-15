@@ -55,7 +55,7 @@ from ...config.manager import ProviderConfig
 
 
 class ChatInput(TextArea):
-    """Multi-line chat input. Enter=send, Ctrl+J=newline, max 3 rows."""
+    """Multi-line chat input. Enter=send, Ctrl+J=newline, ↑↓=history, max 3 rows."""
 
     BINDINGS = [
         ("ctrl+j", "insert_newline", "New Line"),
@@ -63,22 +63,84 @@ class ChatInput(TextArea):
 
     def on_mount(self) -> None:
         self.styles.max_height = 6
-        self.border_title = "Enter=Send  Ctrl+J=newline"
+        self.border_title = "Enter=Send  Ctrl+J=newline  ↑↓=History"
+        self._history_index: int = -1  # -1 = not browsing history
+        self._saved_input: str = ""    # draft saved when browsing history
 
     def clear(self):
         """Clear text and undo history to prevent out-of-bounds undo crashes."""
+        self._history_index = -1
+        self._saved_input = ""
         result = super().clear()
         self.history.clear()
         return result
 
+    def _get_user_messages(self) -> list[str]:
+        """Collect user messages from the active session, newest first."""
+        screen = self.screen
+        if not hasattr(screen, 'agent') or not screen.agent:
+            return []
+        session = screen.agent.sessions.active if screen.agent.sessions else None
+        if not session:
+            return []
+        # Reverse chronological, deduplicated, non-empty
+        seen = set()
+        result = []
+        for msg in reversed(session.messages):
+            if msg.role == "user" and msg.content.strip():
+                stripped = msg.content.strip()
+                if stripped not in seen:
+                    seen.add(stripped)
+                    result.append(stripped)
+        return result
+
     def _on_key(self, event) -> None:
-        if event.key == "enter":
+        if event.key == "up":
+            history = self._get_user_messages()
+            if history:
+                cursor_row = self.cursor_location[0]
+                if self._history_index == -1 and cursor_row > 0:
+                    # Not at first line — let TextArea handle cursor movement
+                    super()._on_key(event)
+                    return
+                if self._history_index == -1:
+                    self._saved_input = self.text
+                    self._history_index = 0
+                elif self._history_index < len(history) - 1:
+                    self._history_index += 1
+                if self._history_index < len(history):
+                    self.load_text(history[self._history_index])
+                    self.move_cursor(self.document.end)
+                event.stop()
+                event.prevent_default()
+            else:
+                super()._on_key(event)
+
+        elif event.key == "down":
+            if self._history_index > 0:
+                self._history_index -= 1
+                history = self._get_user_messages()
+                self.load_text(history[self._history_index])
+                self.move_cursor(self.document.end)
+                event.stop()
+                event.prevent_default()
+            elif self._history_index == 0:
+                # Back to original draft
+                self._history_index = -1
+                self.load_text(self._saved_input)
+                self._saved_input = ""
+                event.stop()
+                event.prevent_default()
+            else:
+                super()._on_key(event)
+
+        elif event.key == "enter":
             event.stop()
             event.prevent_default()
             text = self.text.strip()
             if text:
                 self.clear()
-                # Re-focus immediately so cursor is ready
+                # re-focus immediately so cursor is ready
                 self.focus()
                 # Call screen handler directly
                 screen = self.screen
@@ -86,6 +148,10 @@ class ChatInput(TextArea):
                     import asyncio
                     asyncio.create_task(screen._handle_chat_input(text))
         else:
+            # Any other key resets history browsing
+            if self._history_index != -1:
+                self._history_index = -1
+                self._saved_input = ""
             super()._on_key(event)
 
     def action_insert_newline(self) -> None:
