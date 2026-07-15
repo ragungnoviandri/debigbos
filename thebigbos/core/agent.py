@@ -555,14 +555,20 @@ class BigBosAgent:
             )
             session.add_message(assistant_msg)
 
-            # Emit reasoning first (if any)
+            # Emit & save reasoning first (if any)
             if response.reasoning_content:
                 self._emit("reasoning", response.reasoning_content)
+                if self.config.memory.save_reasoning:
+                    self.memory.save_message(session.id, "reasoning", response.reasoning_content)
 
-            if response.content:
+            # Don't save error responses as history — they poison resumed sessions
+            if response.content and response.finish_reason != "error":
                 self.memory.save_message(session.id, "assistant", response.content,
                                          tool_calls=[{"id": tc.id, "name": tc.name, "arguments": tc.arguments}
                                                      for tc in response.tool_calls] if response.tool_calls else None)
+                self._emit("response", response.content)
+                final_response += response.content
+            elif response.content and response.finish_reason == "error":
                 self._emit("response", response.content)
                 final_response += response.content
 
@@ -665,10 +671,13 @@ class BigBosAgent:
             if response.finish_reason == "error":
                 self._emit("api_error", response.content[:200])
                 yield response.content
+                break  # Don't save error responses — they poison resumed sessions
 
             # —— Reasoning first ——
             if response.reasoning_content:
                 self._emit("reasoning", response.reasoning_content[:500])
+                if self.config.memory.save_reasoning:
+                    self.memory.save_message(session.id, "reasoning", response.reasoning_content)
                 yield f"\n[dim italic]{response.reasoning_content[:500]}...[/dim italic]\n\n"
 
             # —— Content ——

@@ -49,7 +49,7 @@ class MemoryConfig(BaseModel):
     auto_load_session: bool = False     # Auto-load last session on startup
     session_keep_days: int = 0          # Auto-clean sessions older than N days (0=keep all)
     resume_mode: str = "clean"          # "full" | "clean" (user+assistant only)
-    save_reasoning: bool = False        # Persist thinking/reasoning to DB
+    save_reasoning: bool = True         # Persist thinking/reasoning to DB
 
 
 class AgentConfig(BaseModel):

@@ -1119,6 +1119,8 @@ class HomeScreen(Screen[Any]):
                 response_area.write(f"\n[bold yellow]You:[/bold yellow] {msg.content[:500]}")
             elif msg.role == "assistant":
                 response_area.write(f"\n[bold cyan]TheBigBos:[/bold cyan] {msg.content[:1000]}")
+            elif msg.role == "reasoning":
+                response_area.write(f"\n[dim italic]💭 {msg.content[:800]}[/dim italic]")
             elif msg.role == "tool":
                 # Only show in "full" resume mode
                 if resume_mode != "clean":

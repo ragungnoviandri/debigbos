@@ -28,8 +28,8 @@ class Session:
         self.updated_at = time.time()
 
     def to_llm_format(self) -> list[Message]:
-        """Return messages in provider-agnostic format."""
-        return list(self.messages)
+        """Return messages in provider-agnostic format, filtering out reasoning/thinking."""
+        return [m for m in self.messages if m.role != "reasoning"]
 
 
 class SessionManager:
