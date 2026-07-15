@@ -253,13 +253,24 @@ class BigBosApp(App[Any]):
         min-width: 16;
     }
 
-    /* Commit dialog — big transparent popup */
+    /* Commit dialog — centered popup with transparent overlay */
     #commit-dialog {
         width: 65%;
         height: auto;
         min-height: 14;
         background: #0f0f23 95%;
         border: thick #0088ff;
+        padding: 2 3;
+        align: center middle;
+    }
+
+    /* Add Provider dialog */
+    #add-provider-dialog {
+        width: 55%;
+        height: auto;
+        max-height: 95%;
+        background: #0f0f23 95%;
+        border: thick #00d4ff;
         padding: 2 3;
         align: center middle;
     }
@@ -278,7 +289,12 @@ class BigBosApp(App[Any]):
         color: #e0e0e0;
     }
 
-    /* Dialog styling */
+    /* Dialog styling — transparent overlay, centered */
+    ModalScreen {
+        background: transparent;
+        align: center middle;
+    }
+
     DialogAlert > Center,
     DialogConfirm > Center,
     DialogPrompt > Center,
