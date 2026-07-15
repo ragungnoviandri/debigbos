@@ -119,6 +119,31 @@ class GitWorkspace:
             return False, r.stderr.strip() or r.stdout.strip()
         return True, r.stdout.strip() or "Pushed!"
 
+    def diff_staged(self) -> str:
+        """Get git diff of staged changes."""
+        if not self.is_repo:
+            return ""
+        r = self._run("diff", "--staged")
+        return r.stdout.strip() if r.returncode == 0 else ""
+
+    def diff_unstaged(self) -> str:
+        """Get git diff of unstaged changes."""
+        if not self.is_repo:
+            return ""
+        r = self._run("diff")
+        return r.stdout.strip() if r.returncode == 0 else ""
+
+    def diff_all(self) -> str:
+        """Get full diff (staged + unstaged) truncated to ~3KB for AI summarization."""
+        if not self.is_repo:
+            return ""
+        staged = self.diff_staged()
+        unstaged = self.diff_unstaged()
+        combined = f"{'='*40}\nSTAGED:\n{'='*40}\n{staged}\n\n{'='*40}\nUNSTAGED:\n{'='*40}\n{unstaged}"
+        if len(combined) > 4000:
+            combined = combined[:4000] + "\n... [truncated]"
+        return combined
+
     def current_branch(self) -> str:
         """Get current branch name."""
         if not self.is_repo:

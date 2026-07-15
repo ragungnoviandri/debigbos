@@ -26,6 +26,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from rich.align import Align
+from rich.box import ROUNDED
+from rich.panel import Panel
+from rich.text import Text as RichText
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -531,6 +536,8 @@ class HomeScreen(Screen[Any]):
         self._thinking = False
         self._initialized = False
         self._git: GitWorkspace | None = None
+        self._stream_bubble_open = False  # track live assistant bubble state
+        self._stream_reasoning_shown = False  # track reasoning bubble for this turn
 
     def compose(self) -> ComposeResult:
         """Build the layout."""
@@ -862,12 +869,14 @@ class HomeScreen(Screen[Any]):
         self._initialized = True
 
     def _on_agent_event(self, event_type: str, data: str) -> None:
-        """Handle agent events — bridge to Textual reactive system."""
+        """Handle agent events — bridge to Textual reactive system with WhatsApp-style bubbles."""
         response_area = self.query_one("#response-area", ResponseArea)
         tool_log = self.query_one("#tool-log", ToolLogWidget)
 
         if event_type == "thinking":
             self._thinking = True
+            self._stream_bubble_open = False
+            self._stream_reasoning_shown = False
             self._update_sidebar()
 
         elif event_type == "api_info":
@@ -885,18 +894,24 @@ class HomeScreen(Screen[Any]):
             self._thinking = False
 
         elif event_type == "reasoning":
-            # Model's reasoning/thinking — keep thinking spinner active
+            # Model's reasoning/thinking — show in dim bubble
+            if not self._stream_reasoning_shown and data:
+                bubble = self._render_bubble("reasoning", data[:800])
+                if bubble:
+                    response_area.write(bubble)
+                self._stream_reasoning_shown = True
             self._update_sidebar()
 
         elif event_type == "response":
-            # Content arriving — keep spinner on, wait for done
+            # Content arriving during live stream — content handled by _run_chat
             self._update_sidebar()
 
         elif event_type == "done":
             self._thinking = False
+            self._stream_bubble_open = False
+            self._stream_reasoning_shown = False
             response_area.write("\n[dim green]✓[/dim green]")
             self._update_sidebar()
-            # Re-focus chat input so user can type immediately
             self.query_one("#prompt-input", ChatInput).focus()
 
         elif event_type == "tool_executing":
@@ -908,20 +923,12 @@ class HomeScreen(Screen[Any]):
                         "args": tool.get("args", {}),
                         "status": "running",
                     })
-                    response_area.write(f"\n[dim]🔧 {tool['name']}({json.dumps(tool.get('args', {}))[:60]})[/dim]")
-                tool_log.tool_entries = list(self._tool_log)
-                tool_log.refresh(layout=True)
-            except Exception:
-                pass
-
-        elif event_type == "tool_result":
-            try:
-                info = json.loads(data)
-                for t in self._tool_log:
-                    if t["name"] == info["name"] and t["status"] == "running":
-                        t["status"] = "done"
-                        t["result"] = info.get("result", "")[:200]
-                        break
+                    # Compact tool bubble
+                    args_str = json.dumps(tool.get("args", {}))
+                    short_args = args_str[:80] + ("..." if len(args_str) > 80 else "")
+                    response_area.write(
+                        self._render_bubble("tool", f"{tool['name']}({short_args})")
+                    )
                 tool_log.tool_entries = list(self._tool_log)
                 tool_log.refresh(layout=True)
             except Exception:
@@ -931,12 +938,14 @@ class HomeScreen(Screen[Any]):
             try:
                 tools = json.loads(data)
                 names = [t["name"] for t in tools]
+                for t in self._tool_log:
+                    if t["name"] in names and t["status"] == "running":
+                        t["status"] = "done"
+                tool_log.tool_entries = list(self._tool_log)
+                tool_log.refresh(layout=True)
                 count = len(names)
-                if count == 1:
-                    response_area.write(f"  [dim green]✔ {names[0]} done[/dim green]")
-                elif count > 1:
-                    joined = ", ".join(names)
-                    response_area.write(f"  [dim green]✔ {count} tools done ({joined})[/dim green]")
+                suffix = f"  [dim green]✔ {count} tool{'s' if count > 1 else ''} done[/dim green]"
+                response_area.write(suffix)
             except Exception:
                 pass
 
@@ -1097,8 +1106,44 @@ class HomeScreen(Screen[Any]):
                 self._update_sidebar()
                 self._populate_session_select()
 
+    # ——— Chat bubbles (WhatsApp-style) ———
+
+    @staticmethod
+    def _render_bubble(role: str, content: str) -> Panel | Align | str:
+        """Render a WhatsApp-style chat bubble using Rich Panel.
+
+        User → right-aligned yellow, TheBigBos → left cyan, reasoning → dim italic, tool → compact grey.
+        """
+        if not content.strip():
+            return ""
+
+        style_map: dict[str, tuple[str, str, str]] = {
+            "user":        ("You",        "bold yellow",        "yellow"),
+            "assistant":   ("TheBigBos",  "bold cyan",          "cyan"),
+            "reasoning":   ("Thinking",   "dim italic",         "grey50"),
+            "tool":        ("Tool",       "dim",                "grey50"),
+        }
+        title, title_style, border_style = style_map.get(role, ("", "", "white"))
+
+        # Trim content for each type
+        limits = {"user": 1000, "assistant": 4000, "reasoning": 800, "tool": 200}
+        limit = limits.get(role, 2000)
+        text = RichText(content[:limit], style="")
+
+        panel = Panel(
+            text,
+            title=f"[{title_style}]{title}[/{title_style}]",
+            border_style=border_style,
+            box=ROUNDED,
+            padding=(0, 1),
+        )
+
+        if role == "user":
+            return Align.right(panel)
+        return panel
+
     def _load_history(self) -> None:
-        """Display loaded session history in response area."""
+        """Display loaded session history as WhatsApp-style bubbles."""
         response_area = self.query_one("#response-area", ResponseArea)
         response_area.clear()
         session = self.agent.sessions.active
@@ -1106,25 +1151,20 @@ class HomeScreen(Screen[Any]):
             return
 
         resume_mode = session.metadata.get("_resume_mode", "full")
-        skipped = session.metadata.get("_skipped_tool_msgs", 0)
 
         for msg in session.messages:
             if msg.role == "system":
                 content = msg.content
-                # Show compaction summaries and truncation notices
                 if any(kw in content for kw in ("[Context compacted", "[Showing last", "[Session summary", "[skipped", "tool/reasoning")):
                     response_area.write(f"\n[dim italic]{content}[/dim italic]")
                 continue
-            if msg.role == "user":
-                response_area.write(f"\n[bold yellow]You:[/bold yellow] {msg.content[:500]}")
-            elif msg.role == "assistant":
-                response_area.write(f"\n[bold cyan]TheBigBos:[/bold cyan] {msg.content[:1000]}")
-            elif msg.role == "reasoning":
-                response_area.write(f"\n[dim italic]💭 {msg.content[:800]}[/dim italic]")
-            elif msg.role == "tool":
-                # Only show in "full" resume mode
-                if resume_mode != "clean":
-                    response_area.write(f"\n[dim]Tool: {msg.content[:150]}[/dim]")
+
+            if msg.role == "tool" and resume_mode == "clean":
+                continue  # skip tools in clean resume mode
+
+            bubble = self._render_bubble(msg.role, msg.content)
+            if bubble:
+                response_area.write(bubble)
 
     async def _load_more_history(self) -> None:
         """Load more messages from DB into the current session."""
@@ -1173,7 +1213,9 @@ class HomeScreen(Screen[Any]):
             self.query_one("#prompt-input", ChatInput).focus()
             return
 
-        response_area.write(f"\n[bold yellow]You:[/bold yellow] {text}\n")
+        # Show user message as WhatsApp-style bubble (right-aligned)
+        user_bubble = self._render_bubble("user", text)
+        response_area.write(user_bubble)
 
         if self.agent:
             self._thinking = True
@@ -1225,7 +1267,7 @@ class HomeScreen(Screen[Any]):
     async def _prompt_commit_message(self) -> str | None:
         """Show a dialog to enter a commit message. Returns None if cancelled."""
         import asyncio
-        
+
         # Get changes summary
         summary = ""
         if self._git:
@@ -1239,27 +1281,31 @@ class HomeScreen(Screen[Any]):
                 pass
 
         future: asyncio.Future = asyncio.get_event_loop().create_future()
-        
+        agent_ref = self.agent
+        git_ref = self._git
+
         class CommitMessageDialog(ModalScreen[None]):
             def __init__(self, changes_summary: str, mode: str, fut: asyncio.Future):
                 super().__init__()
                 self._summary = changes_summary
-                self._mode = mode  # 'build' or 'plan'
+                self._mode = mode
                 self._future = fut
+                self._generating = False
 
             def compose(self) -> ComposeResult:
                 mode_class = "mode-build" if self._mode == "build" else "mode-plan"
                 with Vertical(id="commit-dialog", classes=f"modal-container {mode_class}"):
-                    yield Label("[bold reverse]  📦 Commit  [/bold reverse]", id="dialog-title")
+                    yield Label("[bold reverse]  Commit  [/bold reverse]", id="dialog-title")
                     with Vertical(id="dialog-body"):
                         if self._summary:
                             yield Label(f"[dim]{self._summary}[/dim]")
                         yield Label("Commit message:")
                         yield Input(id="commit-msg-input", placeholder="feat: ...")
-                        yield Label("[dim]Enter=Confirm  Esc=Cancel[/dim]")
+                        yield Label("[dim]Enter=Confirm  Esc=Cancel  |  Auto = AI-generated[/dim]")
                     with Horizontal(id="dialog-actions"):
                         yield Button("Cancel", variant="default", id="cancel-btn")
-                        yield Button("📦 Commit", variant="primary", id="confirm-commit-btn")
+                        yield Button("Auto", variant="warning", id="auto-commit-btn")
+                        yield Button("Commit", variant="primary", id="confirm-commit-btn")
 
             def on_mount(self) -> None:
                 self.query_one("#commit-msg-input", Input).focus()
@@ -1270,6 +1316,58 @@ class HomeScreen(Screen[Any]):
                     self._future.set_result(msg)
                     self.dismiss()
 
+            async def _generate_message(self) -> None:
+                """Use the active AI provider to generate a commit message from git diff."""
+                input_widget = self.query_one("#commit-msg-input", Input)
+                auto_btn = self.query_one("#auto-commit-btn", Button)
+
+                if self._generating:
+                    return
+                self._generating = True
+                auto_btn.disabled = True
+                auto_btn.label = "Generating..."
+
+                try:
+                    diff_text = git_ref.diff_all() if git_ref else ""
+                    if not diff_text:
+                        input_widget.value = "chore: update"
+                        return
+
+                    from thebigbos.models.provider import Message, ModelOptions
+                    provider = agent_ref.providers.active if agent_ref else None
+                    if not provider:
+                        input_widget.value = "chore: update"
+                        return
+
+                    prompt = (
+                        "Write a concise git commit message for this diff. "
+                        "Use conventional commits: feat:, fix:, chore:, refactor:, docs:, style:, test:.\n"
+                        "Rules: single line, max 72 chars, present tense, imperative mood, "
+                        "be specific about what changed. Output ONLY the message, no quotes.\n\n"
+                        f"Diff:\n{diff_text}"
+                    )
+
+                    response = await provider.chat(
+                        [Message(role="user", content=prompt)],
+                        [],
+                        ModelOptions(
+                            model=agent_ref.config.small_model or agent_ref.config.active_model,
+                            max_tokens=80,
+                        ),
+                    )
+                    msg = response.content.strip().strip('"').strip("'")
+                    msg = msg.split("\n")[0].strip()
+                    if len(msg) > 100:
+                        msg = msg[:97] + "..."
+                    input_widget.value = msg or "chore: update"
+                except Exception:
+                    input_widget.value = "chore: update"
+                finally:
+                    self._generating = False
+                    auto_btn.disabled = False
+                    auto_btn.label = "Auto"
+                    input_widget.focus()
+
             def on_button_pressed(self, event: Button.Pressed) -> None:
                 if event.button.id == "cancel-btn":
                     self._future.set_result(None)
@@ -1279,6 +1377,9 @@ class HomeScreen(Screen[Any]):
                     if msg:
                         self._future.set_result(msg)
                         self.dismiss()
+                elif event.button.id == "auto-commit-btn":
+                    import asyncio
+                    asyncio.create_task(self._generate_message())
 
             def _on_key(self, event) -> None:
                 if hasattr(event, 'key') and event.key == "escape":
@@ -1289,7 +1390,7 @@ class HomeScreen(Screen[Any]):
         dialog = CommitMessageDialog(summary, mode, future)
         self.app.push_screen(dialog)
         try:
-            return await asyncio.wait_for(future, timeout=300)  # 5 min
+            return await asyncio.wait_for(future, timeout=300)
         except asyncio.TimeoutError:
             return None
 
@@ -1421,21 +1522,27 @@ class HomeScreen(Screen[Any]):
             pass
 
     async def _run_chat(self, user_input: str) -> None:
-        """Run chat with streaming response — text appears in real-time."""
+        """Run chat with streaming response — WhatsApp-style live bubbles."""
         response_area = self.query_one("#response-area", ResponseArea)
         sidebar = self.query_one("#sidebar-info", SidebarWidget)
+        first_content = True
         try:
             async for chunk in self.agent.stream_chat(user_input):
+                if first_content and chunk.strip():
+                    # Open live assistant bubble header
+                    response_area.write("\n[bold cyan]▌ TheBigBos[/bold cyan]\n")
+                    first_content = False
                 response_area.write(chunk)
         except Exception as e:
             error = str(e)[:100]
-            response_area.write(f"\n[red]Error: {error}[/red]")
+            response_area.write(f"\n[red]❌ Error: {error}[/red]")
             sidebar.error_msg = error
         finally:
+            if not first_content:
+                response_area.write("\n")  # close bubble spacing
             self._thinking = False
             sidebar.error_msg = ""
             self._update_sidebar()
-            # Ensure focus returns to input
             self.query_one("#prompt-input", ChatInput).focus()
 
     async def _handle_command(self, cmd: str) -> None:
@@ -1674,6 +1781,23 @@ class HomeScreen(Screen[Any]):
         session.messages = self.agent._sanitize_messages(session.messages)
         after = len(session.messages)
         removed = before - after
+
+        # Persist cleaned state to DB so corruption doesn't come back on reload
+        try:
+            clean_dicts = [
+                {
+                    "role": m.role,
+                    "content": m.content,
+                    "tool_calls": [{"id": tc.id, "name": tc.name, "arguments": tc.arguments} for tc in (m.tool_calls or [])],
+                    "tool_call_id": m.tool_call_id,
+                    "name": m.name,
+                }
+                for m in session.messages
+            ]
+            self.agent.memory.resync_messages(session.id, clean_dicts)
+        except Exception as e:
+            response_area.write(f"[yellow]Memory sync warning: {e}[/yellow]\n")
+
         if removed > 0:
             response_area.write(f"[green]Fixed! Removed {removed} incomplete message(s).[/green]\n")
             self._load_history()

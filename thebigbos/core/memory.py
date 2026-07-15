@@ -170,6 +170,20 @@ class MemoryManager:
             for row in rows
         ]
 
+    def resync_messages(self, session_id: str, messages: list[dict[str, Any]]) -> None:
+        """Wipe and rewrite all messages for a session (used by /fix to persist sanitized state)."""
+        self.conn.execute("DELETE FROM messages WHERE session_id = ?", (session_id,))
+        now = time.time()
+        for m in messages:
+            self.conn.execute(
+                "INSERT INTO messages (session_id, role, content, tool_calls, tool_call_id, name, timestamp) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (session_id, m["role"], m["content"], json.dumps(m.get("tool_calls") or []),
+                 m.get("tool_call_id"), m.get("name"), now),
+            )
+        self.conn.execute("UPDATE sessions SET updated_at = ? WHERE id = ?", (now, session_id))
+        self.conn.commit()
+
     def get_session_summary(self, session_id: str) -> str:
         """Get the session summary."""
         row = self.conn.execute(

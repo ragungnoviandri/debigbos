@@ -290,6 +290,9 @@ class BigBosAgent:
             for m in recent:
                 session.messages.append(self._db_to_message(m))
 
+            # Sanitize incomplete tool-call sequences from DB corruption
+            session.messages = self._sanitize_messages(session.messages)
+
             # Prepend session summary as system context
             summary = self.memory.get_session_summary(session_id)
             parts = []
@@ -308,8 +311,6 @@ class BigBosAgent:
             session.metadata["_loaded_count"] = len(recent)
             session.metadata["_resume_mode"] = resume_mode
 
-            # Sanitize: strip incomplete tool-call sequences
-            session.messages = self._sanitize_messages(session.messages)
         elif session_id.startswith("opencode-"):
             self._load_opencode_session(session_id, session)
         elif session_id.startswith("hermes-"):
@@ -368,6 +369,8 @@ class BigBosAgent:
                     continue
             src.close()
             if loaded:
+                # Sanitize in case external DB has corrupted sequences
+                session.messages = self._sanitize_messages(session.messages)
                 break
 
     def _load_hermes_session(self, session_id: str, session: Session) -> None:
@@ -673,12 +676,11 @@ class BigBosAgent:
                 yield response.content
                 break  # Don't save error responses — they poison resumed sessions
 
-            # —— Reasoning first ——
+            # —— Reasoning first (emitted via event, NOT yielded to avoid double render) ——
             if response.reasoning_content:
-                self._emit("reasoning", response.reasoning_content[:500])
+                self._emit("reasoning", response.reasoning_content[:800])
                 if self.config.memory.save_reasoning:
                     self.memory.save_message(session.id, "reasoning", response.reasoning_content)
-                yield f"\n[dim italic]{response.reasoning_content[:500]}...[/dim italic]\n\n"
 
             # —— Content ——
             if response.content:
@@ -804,11 +806,20 @@ class BigBosAgent:
         if not to_summarize:
             return
 
-        # Build summary input — include user + assistant only
-        summary_input = "\n".join(
-            f"[{m.role}]: {m.content[:300]}" for m in to_summarize
-            if m.role in ("user", "assistant")
-        )
+        # Build summary input — include user, assistant, reasoning, and compact tools
+        summary_parts = []
+        for m in to_summarize:
+            if m.role == "user":
+                summary_parts.append(f"[user]: {m.content[:200]}")
+            elif m.role == "assistant":
+                summary_parts.append(f"[assistant]: {m.content[:300]}")
+            elif m.role == "reasoning":
+                summary_parts.append(f"[think]: {m.content[:200]}")
+            elif m.role == "tool":
+                # Compact tool: just show name + first 80 chars
+                tool_name = getattr(m, 'name', '') or 'tool'
+                summary_parts.append(f"[tool]: {tool_name}({m.content[:80]})")
+        summary_input = "\n".join(summary_parts)
 
         summary_msg = Message(
             role="user",
@@ -846,9 +857,18 @@ class BigBosAgent:
             return
 
         try:
-            convo = "\n".join(
-                f"[{m.role}]: {m.content[:200]}" for m in session.messages[-20:]
-            )
+            convo_parts = []
+            for m in session.messages[-30:]:
+                if m.role == "user":
+                    convo_parts.append(f"[user]: {m.content[:200]}")
+                elif m.role == "assistant" and not m.tool_calls:
+                    convo_parts.append(f"[assistant]: {m.content[:250]}")
+                elif m.role == "reasoning" and self.config.memory.save_reasoning:
+                    convo_parts.append(f"[think]: {m.content[:150]}")
+                elif m.role == "tool":
+                    tool_name = getattr(m, 'name', '') or 'tool'
+                    convo_parts.append(f"[tool]: {tool_name}({m.content[:60]})")
+            convo = "\n".join(convo_parts)
             response = await provider.chat(
                 [Message(
                     role="user",
