@@ -32,14 +32,14 @@ class ApiLogger:
             pass
 
     def log_response(self, provider: str, model: str, status_code: int,
-                     response_body: str = "", error: str = "",
+                     body: Any = None, error: str = "",
                      usage: dict = None, call_ref: Any = None) -> None:
         try:
             ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
             if error:
                 entry = f"[{ts}] ERR | {provider}/{model} | {error[:300]}\n"
             else:
-                resp_short = (response_body or "")[:500]
+                resp_short = json.dumps(body, default=str)[:500] if body else ""
                 usage_str = f" usage={usage}" if usage else ""
                 entry = (
                     f"[{ts}] RES | {provider}/{model} | status={status_code}{usage_str}\n"
