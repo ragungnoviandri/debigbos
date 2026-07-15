@@ -77,9 +77,17 @@ class OpencodeGoProvider(ModelProvider):
             error_msg = data.get("error", {}).get("message", response.text[:300] or str(response.status_code))
 
             # Classify errors for better user guidance
-            if response.status_code == 401 or response.status_code == 403:
+            if response.status_code == 401:
                 prefix = "[Auth Error]"
                 hint = " — check your API key (thebigbos configure --key opencode-go=YOUR_KEY)"
+            elif response.status_code == 403:
+                # 403 can be auth OR model-not-available
+                if "not supported" in error_msg.lower() or "model" in error_msg.lower():
+                    prefix = "[Model Error]"
+                    hint = f" — try another model or run `thebigbos models` to list available models"
+                else:
+                    prefix = "[Auth Error]"
+                    hint = " — check your API key (thebigbos configure --key opencode-go=YOUR_KEY)"
             elif response.status_code == 429:
                 prefix = "[Rate Limit]"
                 hint = " — too many requests, wait and retry"
@@ -202,3 +210,15 @@ class OpencodeGoProvider(ModelProvider):
             return total
         except Exception:
             return super().count_tokens(messages)
+
+    async def fetch_models(self) -> list[str]:
+        """Fetch available models from the OpenCode API."""
+        url = f"{self.base_url}/models"
+        try:
+            response = await self.client.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                return [m["id"] for m in data.get("data", [])]
+        except Exception:
+            pass
+        return []
