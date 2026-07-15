@@ -1189,18 +1189,19 @@ class HomeScreen(Screen[Any]):
         if not content.strip():
             return ""
 
-        style_map: dict[str, tuple[str, str, str]] = {
-            "user":        ("You",        "bold yellow",        "yellow"),
-            "assistant":   ("TheBigBos",  "bold cyan",          "cyan"),
-            "reasoning":   ("🧠 Thinking", "italic",              "grey70"),
-            "tool":        ("Tool",       "dim",                "grey50"),
+        style_map: dict[str, tuple[str, str, str, str]] = {
+            # (title, title_style, border_style, text_style)
+            "user":        ("You",        "bold yellow",       "yellow",  ""),
+            "assistant":   ("TheBigBos",  "bold cyan",         "cyan",    ""),
+            "reasoning":   ("🧠 Thinking", "italic",            "grey70",  "dim italic grey70"),
+            "tool":        ("Tool",       "dim",               "grey50",  "dim grey50"),
         }
-        title, title_style, border_style = style_map.get(role, ("", "", "white"))
+        title, title_style, border_style, text_style = style_map.get(role, ("", "", "white", ""))
 
         # Trim content for each type
         limits = {"user": 1000, "assistant": 4000, "reasoning": 800, "tool": 200}
         limit = limits.get(role, 2000)
-        text = RichText(content[:limit], style="")
+        text = RichText(content[:limit], style=text_style)
 
         panel = Panel(
             text,
