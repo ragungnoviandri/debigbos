@@ -11,9 +11,8 @@ from typing import Any
 
 
 def _get_log_path() -> Path:
-    """Resolve the log file path relative to thebigbos package root."""
-    # __file__ is .../thebigbos/core/api_logger.py → parent.parent = thebigbos/
-    return Path(__file__).resolve().parent.parent / "logs" / "API.log"
+    """Resolve the log file path to ~/.thebigbos/logs/API.log."""
+    return Path.home() / ".thebigbos" / "logs" / "API.log"
 
 
 # ── Public API ──────────────────────────────────────────────────
