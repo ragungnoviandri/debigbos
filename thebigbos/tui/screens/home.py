@@ -1192,7 +1192,7 @@ class HomeScreen(Screen[Any]):
         style_map: dict[str, tuple[str, str, str]] = {
             "user":        ("You",        "bold yellow",        "yellow"),
             "assistant":   ("TheBigBos",  "bold cyan",          "cyan"),
-            "reasoning":   ("Thinking",   "dim italic",         "grey50"),
+            "reasoning":   ("🧠 Thinking", "italic",              "grey70"),
             "tool":        ("Tool",       "dim",                "grey50"),
         }
         title, title_style, border_style = style_map.get(role, ("", "", "white"))
