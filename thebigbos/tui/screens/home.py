@@ -65,6 +65,12 @@ class ChatInput(TextArea):
         self.styles.max_height = 6
         self.border_title = "Enter=Send  Ctrl+J=newline"
 
+    def clear(self):
+        """Clear text and undo history to prevent out-of-bounds undo crashes."""
+        result = super().clear()
+        self.history.clear()
+        return result
+
     def _on_key(self, event) -> None:
         if event.key == "enter":
             event.stop()
