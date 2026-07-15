@@ -149,3 +149,19 @@ class OpenAIProvider(ModelProvider):
             return total
         except Exception:
             return super().count_tokens(messages)
+
+    async def fetch_models(self) -> list[str]:
+        """Fetch available models from the OpenAI-compatible /v1/models endpoint."""
+        try:
+            models = await self.client.models.list()
+            # Filter to chat-capable models only (exclude embeddings, audio, etc.)
+            chat_models = []
+            for m in models.data:
+                mid = m.id
+                # Skip non-chat models
+                if any(skip in mid for skip in ["embedding", "tts", "whisper", "dall-e", "babbage", "davinci"]):
+                    continue
+                chat_models.append(mid)
+            return sorted(chat_models)
+        except Exception:
+            return []

@@ -89,6 +89,14 @@ class ModelProvider(ABC):
         """
         return _MODEL_CONTEXT_WINDOWS.get(model, 128000)
 
+    async def fetch_models(self) -> list[str]:
+        """Fetch available models from the provider's API.
+        
+        Override in subclasses that support model listing via API.
+        Default returns empty list — provider uses hardcoded config models.
+        """
+        return []
+
 
 # ——— Known model context windows (in tokens) ———
 _MODEL_CONTEXT_WINDOWS: dict[str, int] = {
@@ -111,7 +119,7 @@ _MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "claude-3-5-sonnet-20241022": 200000,
     "claude-3-opus-20240229": 200000,
     "claude-3-haiku-20240307": 200000,
-    # DeepSeek
+    # DeepSeek (via OpenCode)
     "deepseek-v4-pro": 1000000,
     "deepseek-v4-flash": 1000000,
     "deepseek-v3": 128000,
@@ -119,25 +127,41 @@ _MODEL_CONTEXT_WINDOWS: dict[str, int] = {
     "deepseek-r1": 128000,
     "deepseek-r1-0528": 1000000,
     "deepseek-r1-distill-llama-70b": 128000,
-    # Qwen
+    # Qwen (via OpenCode)
     "qwen-plus": 131072,
     "qwen-max": 131072,
     "qwen3.5-397b": 131072,
+    "qwen3.5-plus": 131072,
+    "qwen3.6-plus": 131072,
+    "qwen3.7-plus": 131072,
+    "qwen3.7-max": 131072,
     "qwen2.5": 131072,
-    # Kimi
+    # Kimi (via OpenCode)
     "kimi-k2": 131072,
+    "kimi-k2.5": 131072,
     "kimi-k2.6": 131072,
-    # GLM
+    "kimi-k2.7-code": 131072,
+    # GLM (via OpenCode)
     "glm-4": 131072,
-    "glm5": 131072,
-    # MiniMax
+    "glm-5": 131072,
+    "glm-5.1": 131072,
+    "glm-5.2": 131072,
+    "glm5": 131072,  # legacy alias
+    # MiniMax (via OpenCode)
     "minimax-m1": 1000000,
     "minimax-m2.5": 1000000,
     "minimax-m2.7": 1000000,
     "minimax-m3": 1000000,
+    # Mimo (via OpenCode)
+    "mimo-v2": 131072,
+    "mimo-v2-pro": 131072,
+    "mimo-v2-omni": 131072,
+    "mimo-v2.5": 131072,
+    "mimo-v2.5-pro": 131072,
+    # Hy (via OpenCode)
+    "hy3-preview": 131072,
     # Mistral
     "mistral-large-3": 131072,
-    "mimo-v2": 131072,
     # Gemini
     "gemini-2.5-pro": 1048576,
     "gemini-2.5-flash": 1048576,

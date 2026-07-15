@@ -18,7 +18,11 @@ class ProviderRegistry:
         self._providers: dict[str, ModelProvider] = {}
 
     async def initialize(self) -> None:
-        """Initialize configured providers. Only creates providers with valid API keys."""
+        """Initialize configured providers. Only creates providers with valid API keys.
+        
+        After creating each provider, attempts to fetch the live model list from its API
+        and merges it into the config (falling back to hardcoded defaults).
+        """
         for name, provider_cfg in self.config.providers.items():
             # Skip providers without API keys (unless they don't need one, like ollama)
             if name not in ("ollama",) and (not provider_cfg.api_key or provider_cfg.api_key.startswith("${")):
@@ -27,8 +31,26 @@ class ProviderRegistry:
                 provider = self._create_provider(name, provider_cfg)
                 if provider:
                     self._providers[name] = provider
+                    # Auto-fetch live model list from provider API
+                    await self._sync_models(name, provider, provider_cfg)
             except Exception:
                 pass
+
+    async def _sync_models(self, name: str, provider: ModelProvider, cfg: ProviderConfig) -> None:
+        """Fetch live models from provider API and merge into config."""
+        try:
+            live_models = await provider.fetch_models()
+            if live_models:
+                # Merge: live models first, then append any hardcoded models not in live list
+                existing = set(cfg.models)
+                for m in live_models:
+                    if m not in existing:
+                        cfg.models.append(m)
+                # Update default model if current default is missing and we have live models
+                if cfg.default_model not in cfg.models and live_models:
+                    cfg.default_model = live_models[0]
+        except Exception:
+            pass  # Never break startup for model fetching failure
 
     def _create_provider(self, name: str, cfg: ProviderConfig) -> ModelProvider | None:
         """Create a provider instance from config."""

@@ -93,10 +93,13 @@ DEFAULT_CONFIG = Config(
         "opencode-go": ProviderConfig(
             api_key="${OPENCODE_GO_API_KEY}",
             base_url="https://opencode.ai/zen/go/v1",
-            models=["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v3.2", "deepseek-v3", "qwen-plus", "qwen-max",
-                    "qwen3.5-397b", "kimi-k2", "kimi-k2.6", "glm-4", "glm5",
-                    "minimax-m1", "minimax-m2.5", "minimax-m2.7", "minimax-m3",
-                    "mimo-v2", "mistral-large-3"],
+            models=["deepseek-v4-pro", "deepseek-v4-flash",
+                    "glm-5", "glm-5.1", "glm-5.2",
+                    "kimi-k2.5", "kimi-k2.6", "kimi-k2.7-code",
+                    "minimax-m2.5", "minimax-m2.7", "minimax-m3",
+                    "mimo-v2-pro", "mimo-v2-omni", "mimo-v2.5", "mimo-v2.5-pro",
+                    "qwen3.5-plus", "qwen3.6-plus", "qwen3.7-plus", "qwen3.7-max",
+                    "hy3-preview"],
             default_model="deepseek-v4-pro",
         ),
         "openrouter": ProviderConfig(
