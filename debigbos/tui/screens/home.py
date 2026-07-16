@@ -2397,19 +2397,46 @@ class HomeScreen(Screen[Any]):
         asyncio.create_task(self._show_update_dialog(event))
 
     async def _show_update_dialog(self, event: UpdateAvailable) -> None:
-        """Show version/update dialog (runs in worker for push_screen_wait)."""
+        """Show version/update dialog with fresh check (runs in worker for push_screen_wait)."""
         from textual.containers import Vertical, Horizontal
         from textual.widgets import Label as ModalLabel, Button as ModalButton
 
-        is_update = bool(event.new_version)
+        # Phase 1: Show checking dialog
+        class CheckingDialog(ModalScreen[bool]):
+            BINDINGS = [("escape", "close", "Close")]
+            def compose(self) -> ComposeResult:
+                with Vertical(id="version-dialog", classes="modal-container"):
+                    yield ModalLabel(" de BigBos Update ", id="dialog-title")
+                    yield ModalLabel("")
+                    yield ModalLabel("[bold yellow]⏳ Checking for updates...[/bold yellow]")
+                    yield ModalLabel("[dim]Fetching latest from GitHub...[/dim]")
+            def action_close(self) -> None:
+                self.dismiss(False)
 
-        class VersionDialog(ModalScreen[bool]):
+        checking = CheckingDialog()
+        # Show checking dialog non-blocking
+        self.app.push_screen(checking)
+
+        # Run fresh check
+        from ...core.updater import Updater
+        updater = Updater()
+        new_version = await asyncio.to_thread(updater.check, force=True)
+
+        # Dismiss checking dialog
+        try:
+            self.app.pop_screen()
+        except Exception:
+            pass
+
+        # Phase 2: Show result dialog
+        is_update = bool(new_version)
+
+        class ResultDialog(ModalScreen[bool]):
             BINDINGS = [("escape", "close", "Close"), ("q", "close", "Close")]
 
-            def __init__(self, new_ver: str, changelog: str, is_update: bool):
+            def __init__(self, new_ver: str, is_update: bool):
                 super().__init__()
                 self.new_ver = new_ver
-                self.changelog = changelog
                 self.is_update = is_update
 
             def compose(self) -> ComposeResult:
@@ -2419,10 +2446,8 @@ class HomeScreen(Screen[Any]):
                     if self.is_update:
                         yield ModalLabel(f"[bold yellow]⬇ Update Available![/bold yellow]")
                         yield ModalLabel(f"[bold]{self.new_ver}[/bold] [dim]→ latest[/dim]")
-                        if self.changelog:
-                            yield ModalLabel("")
-                            yield ModalLabel("[bold]What's new:[/bold]")
-                            yield ModalLabel(self.changelog[:500])
+                        yield ModalLabel("")
+                        yield ModalLabel("[dim]Click 'Update Now' to pull & restart.[/dim]")
                     else:
                         yield ModalLabel("[bold green]✓ You're up to date![/bold green]")
                         yield ModalLabel("[dim]Running the latest version.[/dim]")
@@ -2441,8 +2466,15 @@ class HomeScreen(Screen[Any]):
             def action_close(self) -> None:
                 self.dismiss(False)
 
-        dialog = VersionDialog(event.new_version, event.changelog, is_update)
-        confirmed = await self.app.push_screen_wait(dialog)
+        result = ResultDialog(new_version or "", is_update)
+        confirmed = await self.app.push_screen_wait(result)
+
+        # Update label state
+        label = self.query_one("#sidebar-version", VersionLabel)
+        label.update_available = is_update
+        if new_version:
+            label._latest_version = new_version
+
         if confirmed:
             await self._do_update()
 
