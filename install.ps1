@@ -78,10 +78,17 @@ Write-Host "[4/7] Setting up Python..." -ForegroundColor Yellow
 if ($LocalRepo -or $SkipPython) {
     $pythonExe = (Get-Command python -ErrorAction SilentlyContinue).Source
     if (-not $pythonExe) {
-        Write-Host "  ERROR: Python not found on PATH" -ForegroundColor Red
-        exit 1
+        Write-Host "  No system Python found, downloading..." -ForegroundColor Yellow
+        $pythonExe = "$InstallDir\python\python.exe"
+        $pyUrl = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-embed-amd64.zip"
+        $pyZip = "$env:TEMP\python-embed.zip"
+        Invoke-WebRequest -Uri $pyUrl -OutFile $pyZip
+        Expand-Archive -Path $pyZip -DestinationPath "$InstallDir\python" -Force
+        Remove-Item $pyZip
+        Write-Host "  Python ready (bundled)" -ForegroundColor Green
+    } else {
+        Write-Host "  System Python: $pythonExe" -ForegroundColor Green
     }
-    Write-Host "  System Python: $pythonExe" -ForegroundColor Green
 } else {
     $pythonExe = "$InstallDir\python\python.exe"
     if (-not (Test-Path $pythonExe)) {
@@ -116,7 +123,7 @@ Write-Host "[6/7] Creating wrapper..." -ForegroundColor Yellow
 @echo off
 "$InstallDir\venv\Scripts\deBigBos.exe" %*
 "@ | Set-Content -Path "$InstallDir\bin\deBigBos.bat"
-Set-Content -Path "$InstallDir\bin\deBigBos.ps1" -Value "& `"$InstallDir\venv\Scripts\python.exe`" -m deBigBos @args"
+Set-Content -Path "$InstallDir\bin\deBigBos.ps1" -Value "& `"$InstallDir\venv\Scripts\deBigBos.exe`" @args"
 
 # Symlink to user bin
 $userBin = "$env:USERPROFILE\.local\bin"

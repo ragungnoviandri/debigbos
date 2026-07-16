@@ -55,10 +55,10 @@ class ThemeManager:
         # Resolve path
         theme_path = Path(path)
         if not theme_path.is_absolute():
-            # Try relative to workspace or .bigbos/themes/
+            # Try relative to workspace or .debigbos/themes/
             candidates = [
                 Path.cwd() / path,
-                Path.cwd() / ".bigbos" / "themes" / Path(path).name,
+                Path.cwd() / ".debigbos" / "themes" / Path(path).name,
                 Path.home() / ".config" / "deBigBos" / "themes" / Path(path).name,
             ]
             for candidate in candidates:

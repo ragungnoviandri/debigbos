@@ -1,9 +1,9 @@
 """Robust API & error logger for de BigBos — writes structured logs with tracebacks.
 
 Files:
-  ~/.bigbos/logs/api.log     — API request/response summary
-  ~/.bigbos/logs/error.log   — ALL errors with tracebacks (API + internal)
-  ~/.bigbos/logs/events.log  — Session lifecycle, config changes, etc.
+  ~/.debigbos/logs/api.log     — API request/response summary
+  ~/.debigbos/logs/error.log   — ALL errors with tracebacks (API + internal)
+  ~/.debigbos/logs/events.log  — Session lifecycle, config changes, etc.
 
 No more silent `except Exception: pass`. Uses stderr as last-resort fallback.
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 
-LOG_DIR = Path.home() / ".bigbos" / "logs"
+LOG_DIR = Path.home() / ".debigbos" / "logs"
 
 
 def _ensure_dir() -> None:

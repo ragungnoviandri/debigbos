@@ -2,7 +2,7 @@
 
 Fetches https://models.dev/api.json (community-maintained, 4000+ models)
 to resolve accurate context window sizes instead of hardcoded defaults.
-Cache: in-memory (1h TTL) → disk (~/.bigbos/models_dev_cache.json).
+Cache: in-memory (1h TTL) → disk (~/.debigbos/models_dev_cache.json).
 """
 
 import json
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 MODELS_DEV_URL = "https://models.dev/api.json"
 CACHE_TTL = 3600  # 1 hour
-CACHE_DIR = Path.home() / ".bigbos"
+CACHE_DIR = Path.home() / ".debigbos"
 CACHE_FILE = CACHE_DIR / "models_dev_cache.json"
 
 # In-memory cache

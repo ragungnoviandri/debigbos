@@ -166,7 +166,7 @@ class Updater:
 
     def _sync_skills(self, show_output: bool = True) -> None:
         """Copy bundled skills from repo to global config directory."""
-        repo_skills = self.repo_path / ".bigbos" / "skills"
+        repo_skills = self.repo_path / ".debigbos" / "skills"
         if not repo_skills.exists():
             return
 

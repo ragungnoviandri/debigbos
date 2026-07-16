@@ -6,7 +6,7 @@ Usage:
     deBigBos -w /path/to/proj   # Use specific workspace
     deBigBos --model gpt-4o      # Use specific model
     deBigBos --server            # Start HTTP API server (future)
-    deBigBos init                # Initialize .bigbos/ config
+    deBigBos init                # Initialize .debigbos/ config
 """
 
 import argparse
@@ -39,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     run_parser.add_argument("query", nargs="+", help="Query to run")
 
     # Init
-    init_parser = subparsers.add_parser("init", help="Initialize .bigbos/ config")
+    init_parser = subparsers.add_parser("init", help="Initialize .debigbos/ config")
 
     # Install (global setup)
     install_parser = subparsers.add_parser("install", help="Install global config + package")
@@ -159,8 +159,8 @@ async def run_headless(workspace: Path, query: str, model: str = "",
 
 
 async def run_init(workspace: Path) -> None:
-    """Initialize .bigbos/ configuration directory."""
-    bigbos_dir = workspace / ".bigbos"
+    """Initialize .debigbos/ configuration directory."""
+    bigbos_dir = workspace / ".debigbos"
     bigbos_dir.mkdir(parents=True, exist_ok=True)
 
     # Create default config
@@ -337,7 +337,7 @@ async def run_setup(args: argparse.Namespace) -> None:
 
     print()
     print("=" * 50)
-    print("  THE BIG BOS - SETUP")
+    print("  de BigBos - SETUP")
     print("=" * 50)
     print()
 
@@ -697,7 +697,7 @@ async def run_import(args: argparse.Namespace) -> None:
     import uuid
 
     workspace = Path(args.workspace).resolve()
-    db_path = workspace / ".bigbos" / "memory.db"
+    db_path = workspace / ".debigbos" / "memory.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Open target DB
@@ -914,7 +914,7 @@ async def run_sessions(args: argparse.Namespace) -> None:
     from datetime import datetime
 
     workspace = Path(args.workspace).resolve()
-    db_path = workspace / ".bigbos" / "memory.db"
+    db_path = workspace / ".debigbos" / "memory.db"
 
     if not db_path.exists():
         print("No sessions found. Run 'deBigBos' first.")
@@ -1060,7 +1060,7 @@ async def run_uninstall(args: argparse.Namespace) -> None:
             removed.append(p)
 
     print(f"  Removed: {', '.join(removed) if removed else '(nothing to remove)'}")
-    print("  Config + .bigbos/ folders kept.")
+    print("  Config + .debigbos/ folders kept.")
 
 
 async def main_async() -> None:

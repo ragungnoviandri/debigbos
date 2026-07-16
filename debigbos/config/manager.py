@@ -32,14 +32,14 @@ class SoulConfig(BaseModel):
 class SkillConfig(BaseModel):
     """Skill enable/disable settings."""
     enabled: bool = True
-    paths: list[str] = Field(default_factory=lambda: [".bigbos/skills"])
+    paths: list[str] = Field(default_factory=lambda: [".debigbos/skills"])
     auto_load: list[str] = Field(default_factory=list)
 
 
 class MemoryConfig(BaseModel):
     """Memory persistence settings."""
     enabled: bool = True
-    db_path: str = ".bigbos/memory.db"
+    db_path: str = ".debigbos/memory.db"
     embedding_model: str = "all-MiniLM-L6-v2"
     max_short_term: int = 50
     compaction_threshold: float = 0.8
@@ -168,7 +168,7 @@ class ConfigManager:
         paths = [
             Path.home() / ".config" / "deBigBos" / "config.json",
             self.workspace / "deBigBos.json",
-            self.workspace / ".bigbos" / "config.json",
+            self.workspace / ".debigbos" / "config.json",
         ]
         merged = self.config.model_dump()
 

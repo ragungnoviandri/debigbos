@@ -100,9 +100,9 @@ else
 fi
 
 # Copy bundled skills to global config
-if [ -d "$INSTALL_DIR/repo/.bigbos/skills" ]; then
+if [ -d "$INSTALL_DIR/repo/.debigbos/skills" ]; then
     skill_count=0
-    for skill_dir in "$INSTALL_DIR/repo/.bigbos/skills"/*/; do
+    for skill_dir in "$INSTALL_DIR/repo/.debigbos/skills"/*/; do
         skill_name=$(basename "$skill_dir")
         if [ ! -d "$CONFIG_DIR/skills/$skill_name" ]; then
             cp -r "$skill_dir" "$CONFIG_DIR/skills/$skill_name"

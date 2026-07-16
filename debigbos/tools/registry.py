@@ -43,8 +43,8 @@ class ToolRegistry:
         self._tools[tool.name] = tool
 
     def load_custom_tools(self) -> None:
-        """Load custom tools from .bigbos/tools/."""
-        custom_dir = self.workspace / ".bigbos" / "tools"
+        """Load custom tools from .debigbos/tools/."""
+        custom_dir = self.workspace / ".debigbos" / "tools"
         if not custom_dir.exists():
             return
 

@@ -1,6 +1,6 @@
 """Skills system — load on-demand instructions from SKILL.md files.
 
-Skills are Markdown files stored in .bigbos/skills/<name>/SKILL.md.
+Skills are Markdown files stored in .debigbos/skills/<name>/SKILL.md.
 They're loaded lazily when the agent calls the `skill` tool.
 """
 
@@ -33,7 +33,7 @@ class SkillManager:
     def __init__(self, workspace: Path, extra_paths: list[str] | None = None):
         self.workspace = workspace
         self.search_paths: list[Path] = [
-            workspace / ".bigbos" / "skills",          # Per-project skills
+            workspace / ".debigbos" / "skills",          # Per-project skills
         ]
 
         # Global skills (~/.config/deBigBos/skills)

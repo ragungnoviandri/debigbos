@@ -33,7 +33,7 @@ class MemoryManager:
 
     def __init__(self, workspace: Path, embedding_model: str = "all-MiniLM-L6-v2"):
         self.workspace = workspace
-        self.db_path = workspace / ".bigbos" / "memory.db"
+        self.db_path = workspace / ".debigbos" / "memory.db"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self.embedding_model = embedding_model
         self._embedder = None
