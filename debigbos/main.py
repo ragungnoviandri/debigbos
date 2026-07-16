@@ -112,6 +112,9 @@ def parse_args() -> argparse.Namespace:
                                help="Set soul/agent name")
     config_parser.add_argument("--soul-tone", type=str, default="",
                                 help="Set soul tone")
+    config_parser.add_argument("--add-provider", type=str, default="",
+                               metavar="NAME",
+                               help="Add a new provider interactively")
 
     # Version
     version_parser = subparsers.add_parser("version", help="Show version info")
@@ -663,6 +666,42 @@ async def run_configure(args: argparse.Namespace) -> None:
             config["soul"] = {}
         config["soul"]["tone"] = args.soul_tone
         print(f"Soul tone -> {args.soul_tone}")
+        changed = True
+
+    if args.add_provider:
+        name = args.add_provider.strip()
+        print(f"\n➕ Add Provider: {name}")
+        base_url = input("  Base URL: ").strip()
+        if not base_url:
+            print("  ❌ Base URL required")
+            return
+        api_key = input("  API key (or ${ENV_VAR}): ").strip()
+        models_str = input("  Models (comma-separated): ").strip()
+        models = [m.strip() for m in models_str.split(",") if m.strip()]
+        if not models:
+            print("  ❌ At least one model required")
+            return
+        default_model = input(f"  Default model [{models[0]}]: ").strip() or models[0]
+
+        # Save to config
+        if "providers" not in config:
+            config["providers"] = {}
+        config["providers"][name] = {
+            "base_url": base_url,
+            "api_key": api_key,
+            "models": models,
+            "default_model": default_model,
+        }
+        config["active_provider"] = name
+        config["active_model"] = default_model
+
+        # Save key to auth.json
+        if api_key:
+            from debigbos.config.auth import get_auth_manager
+            auth = get_auth_manager()
+            auth.set_key(name, api_key, base_url)
+
+        print(f"  ✅ Provider '{name}' added with {len(models)} models")
         changed = True
 
     if changed:
