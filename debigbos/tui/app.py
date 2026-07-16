@@ -347,9 +347,13 @@ class BigBosApp(App[Any]):
         padding: 1 1 1 1;
         color: #6a6a6a;
         text-style: dim;
+        border: none;
+        background: transparent;
+        min-height: 0;
     }
     #sidebar-version:hover {
         color: #e0e0e0;
+        background: #333333;
     }
     VersionLabel {
         height: auto;

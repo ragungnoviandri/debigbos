@@ -63,21 +63,32 @@ def _strip_markup(text: str) -> str:
 
 
 class UpdateAvailable(Message):
-    """Posted when user clicks the version label while update is available."""
+    """Posted when user clicks version label while update is available."""
 
-    def __init__(self) -> None:
+    def __init__(self, new_version: str = "", changelog: str = "") -> None:
         super().__init__()
+        self.new_version = new_version
+        self.changelog = changelog
 
 
-class VersionLabel(Static, can_focus=True):
-    """Clickable version display — green=updated, blue=update available."""
+class VersionLabel(Button):
+    """Clickable version display — shows update dialog on click."""
 
     version: reactive[str] = reactive("")
     update_available: reactive[bool] = reactive(False)
+    _latest_version: str = ""
+    _changelog: str = ""
 
-    def on_click(self) -> None:
+    def __init__(self, id: str | None = "sidebar-version", **kwargs):
+        super().__init__(id=id, **kwargs)
+        self.can_focus = True
+
+    def on_button_pressed(self) -> None:
+        """Always show version/update dialog on press."""
         if self.update_available:
-            self.post_message(UpdateAvailable())
+            self.post_message(UpdateAvailable(self._latest_version, self._changelog))
+        else:
+            self.post_message(UpdateAvailable("", ""))  # Show "checking" or "up-to-date"
 
     def render(self) -> str:
         if self.update_available:
@@ -2371,27 +2382,61 @@ class HomeScreen(Screen[Any]):
             if new_version:
                 label = self.query_one("#sidebar-version", VersionLabel)
                 label.update_available = True
-                label.tooltip = f"Update available: {new_version} — click to update"
+                label._latest_version = new_version
+                label._changelog = ""  # Fetching changelog async is optional
+                label.tooltip = f"Update available: {new_version} — click for details"
         except Exception:
             pass  # Silently fail — updates are optional
 
     @on(UpdateAvailable)
     async def _on_update_available(self, event: UpdateAvailable) -> None:
-        """Handle click on version label when update is available."""
+        """Handle version label click — show version info / update dialog."""
         event.stop()
-        from textual.screen import ModalScreen
-        from textual.widgets import Label as ModalLabel
+        from textual.containers import Vertical, Horizontal
+        from textual.widgets import Label as ModalLabel, Button as ModalButton
 
-        # Show confirmation
-        class ConfirmUpdate(ModalScreen[bool]):
-            BINDINGS = [("y", "yes", "Yes"), ("n", "no", "No"), ("escape", "no", "No")]
-            def compose(self):
-                yield ModalLabel("Update de BigBos to latest version?")
-                yield ModalLabel("[dim]This will git pull and restart.[/dim]")
-            def action_yes(self): self.dismiss(True)
-            def action_no(self): self.dismiss(False)
+        is_update = bool(event.new_version)
 
-        confirmed = await self.app.push_screen_wait(ConfirmUpdate())
+        class VersionDialog(ModalScreen[bool]):
+            BINDINGS = [("escape", "close", "Close"), ("q", "close", "Close")]
+
+            def __init__(self, new_ver: str, changelog: str, is_update: bool):
+                super().__init__()
+                self.new_ver = new_ver
+                self.changelog = changelog
+                self.is_update = is_update
+
+            def compose(self) -> ComposeResult:
+                with Vertical(id="version-dialog", classes="modal-container"):
+                    yield ModalLabel("[bold reverse]  de BigBos Update  [/bold reverse]", id="dialog-title")
+                    yield ModalLabel("")
+                    if self.is_update:
+                        yield ModalLabel(f"[bold yellow]⬇ Update Available![/bold yellow]")
+                        yield ModalLabel(f"[bold]{self.new_ver}[/bold] [dim]→ latest[/dim]")
+                        if self.changelog:
+                            yield ModalLabel("")
+                            yield ModalLabel("[bold]What's new:[/bold]")
+                            yield ModalLabel(self.changelog[:500])
+                    else:
+                        yield ModalLabel("[bold green]✓ You're up to date![/bold green]")
+                        yield ModalLabel("[dim]Running the latest version.[/dim]")
+                    yield ModalLabel("")
+                    with Horizontal():
+                        if self.is_update:
+                            yield ModalButton("⬇ Update Now", variant="primary", id="update-now-btn")
+                        yield ModalButton("Close", variant="default", id="close-btn")
+
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                if event.button.id == "update-now-btn":
+                    self.dismiss(True)
+                else:
+                    self.dismiss(False)
+
+            def action_close(self) -> None:
+                self.dismiss(False)
+
+        dialog = VersionDialog(event.new_version, event.changelog, is_update)
+        confirmed = await self.app.push_screen_wait(dialog)
         if confirmed:
             await self._do_update()
 
