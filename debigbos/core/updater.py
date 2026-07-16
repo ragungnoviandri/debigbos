@@ -23,6 +23,13 @@ class Updater:
 
     def _find_repo(self) -> Optional[Path]:
         """Find the git repository path."""
+        # Try detecting from package location first
+        try:
+            pkg_dir = Path(__file__).resolve().parent.parent  # debigbos/core -> debigbos -> ..
+            if (pkg_dir / ".git").exists():
+                return pkg_dir
+        except Exception:
+            pass
         candidates = [
             Path(os.environ.get("deBigBos_HOME", "")) / "repo",
             Path.home() / ".local" / "share" / "deBigBos" / "repo",

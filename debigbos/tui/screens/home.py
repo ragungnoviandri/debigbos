@@ -506,7 +506,7 @@ class SettingsDialog(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         from textual.containers import Vertical, Horizontal, VerticalScroll
-        from textual.widgets import Label as ModalLabel, Button as ModalButton, Input
+        from textual.widgets import Label as ModalLabel, Button as ModalButton, Input, Select
         from textual.widgets import TabbedContent, TabPane, Switch
 
         with Vertical(id="settings-dialog", classes="modal-container"):
@@ -560,18 +560,40 @@ class SettingsDialog(ModalScreen[None]):
 
     @on(Button.Pressed, "#add-provider-btn")
     async def _on_add_provider_dialog(self) -> None:
-        """Open the Add Provider dialog, then refresh settings."""
+        """Open the Add Provider dialog, register provider, then refresh."""
         agent = self._home.agent
         if not agent:
             return
         existing = list(agent.config.providers.keys())
         dialog = AddProviderDialog(existing)
-        result = await self.app.push_screen_wait(dialog)
+        worker = self.run_worker(
+            self.app.push_screen_wait(dialog),
+            exclusive=True
+        )
+        result = await worker.wait()
+
         if result:
-            # Re-open settings to show new provider
+            # Register provider at runtime
+            data = getattr(dialog, '_result', None)
+            if data:
+                from ...config.models import ProviderConfig
+                cfg = ProviderConfig(
+                    api_key=data["api_key"],
+                    base_url=data["base_url"],
+                    models=data["models"],
+                    default_model=data["default_model"],
+                )
+                ok = agent.providers.register_runtime_provider(data["name"], cfg)
+                if ok:
+                    agent.config.active_provider = data["name"]
+                    agent.config.active_model = data["default_model"]
+                    agent.notify(f"✨ Provider '{data['name']}' added!")
+
             self.dismiss(None)
             await asyncio.sleep(0.1)
-            await self._home._show_settings()
+            # Re-open settings to show new provider
+            worker2 = self.run_worker(self._home._show_settings(), exclusive=True)
+            await worker2.wait()
 
     def _populate_skill_toggles(self) -> None:
         """Add switch toggles for every skill — grouped by category."""
@@ -1815,7 +1837,12 @@ class HomeScreen(Screen[Any]):
     async def _show_settings(self) -> None:
         """Push settings dialog (worker for push_screen_wait)."""
         dialog = SettingsDialog(self)
-        await self.app.push_screen_wait(dialog)
+        worker = self.run_worker(
+        self.app.push_screen_wait(dialog),
+            exclusive=True
+        )
+        await worker.wait()
+        
         # Refresh sidebar AFTER dialog closes
         self._update_sidebar()
 
