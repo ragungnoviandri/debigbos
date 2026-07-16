@@ -2689,39 +2689,115 @@ class HomeScreen(Screen[Any]):
             await self._do_update()
 
     async def _do_update(self) -> None:
-        """Pull latest code and restart with progress feedback."""
-        from textual.containers import Vertical
-        from textual.widgets import Label as ModalLabel
+        """Pull latest code with live progress log and restart."""
+        from textual.containers import Vertical, Horizontal
+        from textual.widgets import Label as ModalLabel, RichLog as DialogLog, Button as ModalButton
+        from ...core.updater import Updater
+
+        updater = Updater()
+        repo_path = updater.repo_path or ""
 
         class UpdatingDialog(ModalScreen[None]):
+            BINDINGS = [("escape", "close", "Close")]
+
+            def __init__(self, log_widget):
+                super().__init__()
+                self.log_widget = log_widget
+
             def compose(self) -> ComposeResult:
                 with Vertical(id="version-dialog", classes="modal-container"):
                     yield ModalLabel(" de BigBos Update ", id="dialog-title")
                     yield ModalLabel("")
                     yield ModalLabel("[bold yellow]⬇ Updating de BigBos...[/bold yellow]")
-                    yield ModalLabel("[dim]Pulling latest code & restarting...[/dim]")
+                    yield ModalLabel("[dim]Pulling latest from GitHub:[/dim]")
+                    yield self.log_widget
+                    with Horizontal():
+                        yield ModalButton("Close", variant="default", id="close-btn")
 
-        # Show updating dialog, wait for mount
-        updating = UpdatingDialog()
-        await self.app.push_screen(updating, wait_for_dismiss=False)
+            def on_button_pressed(self, event: Button.Pressed) -> None:
+                self.dismiss(None)
 
-        import sys, os
-        try:
-            from ...core.updater import Updater
-            updater = Updater()
-            success = await asyncio.to_thread(updater.update, show_output=False)
-            if success:
-                updating.dismiss(None)
-                self.notify("✅ Updated! Restarting...", severity="success", timeout=3)
-                await asyncio.sleep(1.0)
-                os.execv(sys.executable, [sys.executable] + sys.argv)
+            def action_close(self) -> None:
+                self.dismiss(None)
+
+        # Build log widget
+        log = DialogLog(id="update-log", max_lines=200, min_height=10)
+        log.can_focus = False
+
+        dialog = UpdatingDialog(log)
+        await self.app.push_screen(dialog, wait_for_dismiss=False)
+
+        import sys, os, asyncio
+
+        async def run_update_with_output() -> bool:
+            if not repo_path:
+                log.write("[red]No repo path found![/red]")
+                return False
+
+            log.write("[dim]Fetching origin...[/dim]")
+            proc = await asyncio.create_subprocess_exec(
+                "git", "-C", repo_path, "fetch", "origin",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+            )
+            stdout, _ = await proc.communicate()
+            if stdout:
+                for line in stdout.decode(errors="replace").splitlines()[:10]:
+                    log.write(f"[dim]{line}[/dim]")
+
+            if proc.returncode != 0:
+                log.write("[red]Fetch failed! Check network.[/red]")
+                return False
+
+            log.write("")
+            log.write("[bold]Incoming changes:[/bold]")
+            proc2 = await asyncio.create_subprocess_exec(
+                "git", "-C", repo_path, "log", "HEAD..origin/main", "--oneline",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+            )
+            stdout2, _ = await proc2.communicate()
+            if stdout2 and stdout2.strip():
+                for line in stdout2.decode(errors="replace").splitlines():
+                    log.write(f"  [yellow]{line}[/yellow]")
             else:
-                # Update failed — dismiss dialog and show error
-                updating.dismiss(None)
-                self.notify("Update failed — check network or git status", severity="error")
-        except Exception as e:
-            updating.dismiss(None)
-            self.notify(f"Update failed: {e}", severity="error")
+                log.write("  [dim](no new commits)[/dim]")
+                log.write("")
+                log.write("[green]Already up to date — no restart needed.[/green]")
+                return False
+
+            log.write("")
+            log.write("[bold]Pulling...[/bold]")
+            proc3 = await asyncio.create_subprocess_exec(
+                "git", "-C", repo_path, "pull", "origin", "main",
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+            )
+            stdout3, _ = await proc3.communicate()
+            pull_output = stdout3.decode(errors="replace") if stdout3 else ""
+            for line in pull_output.splitlines():
+                log.write(f"  {line}")
+
+            if proc3.returncode != 0:
+                log.write("[red]Pull failed![/red]")
+                return False
+
+            # Sync skills
+            log.write("")
+            log.write("[dim]Syncing skills...[/dim]")
+            try:
+                updater._sync_skills(show_output=False)
+                log.write("[green]Skills synced.[/green]")
+            except Exception:
+                log.write("[dim]Skills already up to date.[/dim]")
+
+            log.write("")
+            log.write("[bold green]✅ Update complete![/bold green]")
+            log.write("[bold yellow]⚠ Restarting in 3 seconds...[/bold yellow]")
+            return True
+
+        success = await run_update_with_output()
+
+        if success:
+            await asyncio.sleep(3.0)
+            os.execv(sys.executable, [sys.executable, "-m", "debigbos"] + sys.argv[1:])
 
     # ── Clickable session actions (from welcome page) ──────────
 
