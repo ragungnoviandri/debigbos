@@ -252,7 +252,7 @@ class ConfigManager:
         """Get config for a specific subagent."""
         return self.config.agents.get(name)
 
-    def save(self, config: 'Config' | None = None, path: Path | None = None) -> None:
+    def save(self, config: 'Config | None' = None, path: Path | None = None) -> None:
         """Save config to file. Uses passed config or self.config."""
         target = path or (self.workspace / "deBigBos.json")
         data = (config or self.config).model_dump(exclude_none=True)
