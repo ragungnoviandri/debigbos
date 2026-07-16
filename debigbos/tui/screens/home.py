@@ -2595,7 +2595,7 @@ class HomeScreen(Screen[Any]):
         """Set the version label with current build number."""
         try:
             label = self.query_one("#sidebar-version", VersionLabel)
-            label.version = f"1.1.{get_build_number()}"
+            label.version = get_version_string()
         except NoMatches:
             pass
 
