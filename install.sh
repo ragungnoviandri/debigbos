@@ -93,7 +93,7 @@ echo "  Wrapper: $BIN_DIR/deBigBos"
 # 6. Default config + skills
 echo "[6/6] Setting up config and skills..."
 if [ ! -f "$CONFIG_DIR/config.json" ]; then
-    cp "$INSTALL_DIR/repo/deBigBos.json" "$CONFIG_DIR/config.json"
+    cp "$INSTALL_DIR/repo/debigbos.json" "$CONFIG_DIR/config.json"
     echo "  Created default config: $CONFIG_DIR/config.json"
 else
     echo "  Config already exists"
