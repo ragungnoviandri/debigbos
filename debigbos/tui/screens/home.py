@@ -489,16 +489,15 @@ class SettingsDialog(ModalScreen[None]):
         with Vertical(id="settings-dialog", classes="modal-container"):
             yield ModalLabel(" ⚙ Settings ", id="dialog-title")
             with TabbedContent(id="settings-tabs"):
-                # Tab 1: AI Models
-                with TabPane("🤖 AI Models", id="tab-general"):
+                # Tab 1: Info
+                with TabPane("🤖 Info", id="tab-general"):
                     yield ModalLabel("")
-                    yield ModalLabel("[bold]Active Provider[/bold]")
-                    yield ModalLabel("[dim]Set the default AI provider for new sessions.[/dim]")
-                    yield Select([], id="settings-provider-select", prompt="Provider...")
-                    yield ModalLabel("")
-                    yield ModalLabel("[bold]Active Model[/bold]")
-                    yield ModalLabel("[dim]Set the default model for conversations.[/dim]")
-                    yield Select([], id="settings-model-select", prompt="Model...")
+                    yield ModalLabel("[bold]Current Model[/bold]")
+                    agent = self._home.agent
+                    if agent:
+                        yield ModalLabel(f"  {agent.config.active_provider} / {agent.config.active_model}")
+                    else:
+                        yield ModalLabel("  [dim]No agent loaded[/dim]")
 
                 # Tab 2: Skills
                 with TabPane("🛠 Skills", id="tab-skills"):
@@ -514,39 +513,9 @@ class SettingsDialog(ModalScreen[None]):
                 yield ModalButton("Cancel", variant="default", id="settings-cancel-btn")
 
     def on_mount(self) -> None:
-        """Populate dropdowns and skill list."""
-        agent = self._home.agent
-        if not agent:
-            return
-
-        # Provider select
-        prov_select = self.query_one("#settings-provider-select", Select)
-        providers = list(agent.config.providers.keys())
-        prov_select.set_options([(p, p) for p in providers])
-        prov_select.value = agent.config.active_provider
-
-        # Model select
-        self._update_model_select(agent.config.active_provider)
-
+        """Populate skill list."""
         # Skill toggles
         self._populate_skill_toggles()
-
-    def _update_model_select(self, provider_name: str | None = None) -> None:
-        """Update model dropdown for a given provider."""
-        agent = self._home.agent
-        if not agent:
-            return
-        name = provider_name or agent.config.active_provider
-        prov = agent.config.providers.get(name)
-        model_select = self.query_one("#settings-model-select", Select)
-        if prov:
-            # prov.models is already a list of strings (model IDs)
-            models = prov.models if isinstance(prov.models, list) else []
-            model_select.set_options([(m, m) for m in models])
-            if agent.config.active_model in models:
-                model_select.value = agent.config.active_model
-            elif models:
-                model_select.value = models[0]
 
     def _populate_skill_toggles(self) -> None:
         """Add switch toggles for every skill — grouped by category."""
@@ -605,11 +574,6 @@ class SettingsDialog(ModalScreen[None]):
                 row.mount(ModalLabel(label_text))
                 row.mount(switch)
 
-    @on(Select.Changed, "#settings-provider-select")
-    def _on_provider_changed(self, event: Select.Changed) -> None:
-        if event.value:
-            self._update_model_select(str(event.value))
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "settings-save-btn":
             self._save_settings()
@@ -622,14 +586,6 @@ class SettingsDialog(ModalScreen[None]):
         agent = self._home.agent
         if not agent:
             return
-
-        # Provider & Model
-        prov_select = self.query_one("#settings-provider-select", Select)
-        model_select = self.query_one("#settings-model-select", Select)
-        if prov_select.value:
-            agent.config.active_provider = str(prov_select.value)
-        if model_select.value:
-            agent.config.active_model = str(model_select.value)
 
         # Skills
         disabled = set()
