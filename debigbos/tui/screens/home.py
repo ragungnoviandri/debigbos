@@ -498,11 +498,7 @@ class SettingsDialog(ModalScreen[None]):
     }
 
     .provider-row {
-        cursor: pointer;
         padding: 0 1;
-    }
-    .provider-row:hover {
-        background: $boost;
     }
     """
 
@@ -570,6 +566,9 @@ class SettingsDialog(ModalScreen[None]):
     @on(events.Click, ".provider-row")
     def _on_provider_row_click(self, event: events.Click) -> None:
         """Click provider row → switch active provider."""
+        # Ignore clicks on buttons, selects, or inputs inside the row
+        if isinstance(event.widget, (Button, Select, Input)):
+            return
         # Find the provider row (closest with id starting with provider-row-)
         target = event.widget
         while target and target.parent:
@@ -731,7 +730,7 @@ class SettingsDialog(ModalScreen[None]):
         cfg = agent.config.providers.get(name)
         if not cfg:
             return
-        asyncio.create_task(self._show_edit_provider(name, cfg))
+        self.run_worker(self._show_edit_provider(name, cfg), exclusive=True)
 
     async def _show_edit_provider(self, name: str, cfg: 'ProviderConfig') -> None:
         """Show edit dialog for a provider."""
@@ -767,6 +766,10 @@ class SettingsDialog(ModalScreen[None]):
         if result:
             cfg.base_url = result["endpoint"]
             cfg.api_key = result["apikey"]
+            # Persist to auth.json
+            from ...config.auth import get_auth_manager
+            auth = get_auth_manager()
+            auth.set_key(name, result["apikey"], result["endpoint"])
             # Re-open settings to show changes
             self.dismiss(None)
             await asyncio.sleep(0.1)
