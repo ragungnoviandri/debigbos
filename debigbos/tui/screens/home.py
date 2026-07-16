@@ -2389,9 +2389,15 @@ class HomeScreen(Screen[Any]):
             pass  # Silently fail — updates are optional
 
     @on(UpdateAvailable)
-    async def _on_update_available(self, event: UpdateAvailable) -> None:
+    def _on_update_available(self, event: UpdateAvailable) -> None:
         """Handle version label click — show version info / update dialog."""
         event.stop()
+        # Must run in a worker since push_screen_wait requires it
+        import asyncio
+        asyncio.create_task(self._show_update_dialog(event))
+
+    async def _show_update_dialog(self, event: UpdateAvailable) -> None:
+        """Show version/update dialog (runs in worker for push_screen_wait)."""
         from textual.containers import Vertical, Horizontal
         from textual.widgets import Label as ModalLabel, Button as ModalButton
 
