@@ -193,6 +193,7 @@ class ConfigManager:
 
         config = Config.model_validate(merged)
         self._resolve_api_keys(config)
+        self.config = config  # Track loaded config for save()
         return config
 
     def _deep_merge(self, base: dict, override: dict) -> None:
@@ -251,8 +252,8 @@ class ConfigManager:
         """Get config for a specific subagent."""
         return self.config.agents.get(name)
 
-    def save(self, path: Path | None = None) -> None:
-        """Save current config to file."""
+    def save(self, config: 'Config' | None = None, path: Path | None = None) -> None:
+        """Save config to file. Uses passed config or self.config."""
         target = path or (self.workspace / "deBigBos.json")
-        data = self.config.model_dump(exclude_none=True)
+        data = (config or self.config).model_dump(exclude_none=True)
         target.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")

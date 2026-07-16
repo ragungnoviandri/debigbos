@@ -644,10 +644,9 @@ class SettingsDialog(ModalScreen[None]):
         from pathlib import Path
         config_path = Path.home() / ".config" / "deBigBos" / "config.json"
         config_path.parent.mkdir(parents=True, exist_ok=True)
-        agent.config_manager.save(config_path)
+        agent.config_manager.save(agent.config, config_path)
 
         self._home.notify("✅ Settings saved!", severity="success")
-        self._home._update_sidebar()
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -1880,6 +1879,8 @@ class HomeScreen(Screen[Any]):
         """Push settings dialog (worker for push_screen_wait)."""
         dialog = SettingsDialog(self)
         await self.app.push_screen_wait(dialog)
+        # Refresh sidebar AFTER dialog closes
+        self._update_sidebar()
 
     @on(Button.Pressed, "#delete-session-btn")
     async def _on_delete_session_btn(self) -> None:
