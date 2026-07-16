@@ -48,7 +48,8 @@ class BigBosAgent:
         # Core components
         self.soul = Soul(self.config.soul)
         self.memory = MemoryManager(self.workspace, self.config.memory.embedding_model)
-        self.skills = SkillManager(self.workspace, self.config.skills.paths)
+        self.skills = SkillManager(self.workspace, self.config.skills.paths, 
+                                    list(self.config.skills.disabled_skills))
         self.sessions = SessionManager(self.workspace)
         self.providers = ProviderRegistry(self.config)
         self.tools = ToolRegistry(self.workspace)

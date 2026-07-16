@@ -339,6 +339,34 @@ class BigBosApp(App[Any]):
         text-style: bold;
     }
 
+    /* ── Settings dialog ──────────────────────────── */
+    #settings-dialog {
+        width: 60;
+        max-width: 70;
+        height: auto;
+        max-height: 80%;
+        background: #1a1a2e;
+        border: thick #5c9cf5;
+        padding: 1;
+    }
+    #settings-dialog .skill-row {
+        border-bottom: solid #333;
+        padding: 0 1;
+        height: auto;
+    }
+    #settings-dialog .skill-row Label {
+        width: 1fr;
+    }
+    #settings-dialog .skill-row Switch {
+        width: auto;
+    }
+    #settings-tabs {
+        height: auto;
+    }
+    TabPane {
+        padding: 0 1;
+    }
+
     /* Scrollbar */
     Scrollbar {
         scrollbar-color: #4b4c5c;

@@ -34,6 +34,7 @@ class SkillConfig(BaseModel):
     enabled: bool = True
     paths: list[str] = Field(default_factory=lambda: [".debigbos/skills"])
     auto_load: list[str] = Field(default_factory=list)
+    disabled_skills: list[str] = Field(default_factory=list)
 
 
 class CompactionConfig(BaseModel):

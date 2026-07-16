@@ -30,7 +30,8 @@ class Skill:
 class SkillManager:
     """Loads and manages skill definitions from filesystem."""
 
-    def __init__(self, workspace: Path, extra_paths: list[str] | None = None):
+    def __init__(self, workspace: Path, extra_paths: list[str] | None = None,
+                 disabled_skills: list[str] | None = None):
         self.workspace = workspace
         self.search_paths: list[Path] = [
             workspace / ".debigbos" / "skills",          # Per-project skills
@@ -43,7 +44,6 @@ class SkillManager:
 
         if extra_paths:
             for p in extra_paths:
-                # Expand ~ to home directory
                 p_expanded = p
                 if p.startswith("~"):
                     p_expanded = str(Path.home() / p[2:])
@@ -55,6 +55,7 @@ class SkillManager:
 
         self._skills: dict[str, Skill] = {}
         self._scanned = False
+        self.disabled_skills: set[str] = set(disabled_skills or [])
 
     def scan(self) -> list[Skill]:
         """Scan all skill directories for SKILL.md files."""
@@ -72,7 +73,8 @@ class SkillManager:
                 if skill_file.exists():
                     try:
                         skill = self._parse_skill(skill_dir.name, skill_file)
-                        self._skills[skill.name] = skill
+                        if skill.name not in self.disabled_skills:
+                            self._skills[skill.name] = skill
                     except Exception:
                         continue
 
@@ -128,13 +130,80 @@ class SkillManager:
         return self._skills.get(name)
 
     def list_skills(self) -> list[dict[str, str]]:
-        """List available skills as {name, description} pairs."""
+        """List available skills as {name, description, enabled} pairs."""
         if not self._scanned:
             self.scan()
-        return [
-            {"name": s.name, "description": s.description}
-            for s in self._skills.values()
-        ]
+        # Also return ALL skills (including disabled) for settings UI
+        all_skills: dict[str, dict] = {}
+        
+        # Scan all skills including disabled ones for listing
+        for search_path in self.search_paths:
+            if not search_path.exists():
+                continue
+            for skill_dir in search_path.iterdir():
+                if not skill_dir.is_dir():
+                    continue
+                skill_file = skill_dir / "SKILL.md"
+                if skill_file.exists():
+                    try:
+                        skill = self._parse_skill(skill_dir.name, skill_file)
+                        all_skills[skill.name] = {
+                            "name": skill.name,
+                            "description": skill.description,
+                            "enabled": skill.name not in self.disabled_skills,
+                        }
+                    except Exception:
+                        continue
+        
+        return list(all_skills.values())
+
+    def enable_skill(self, name: str) -> bool:
+        """Enable a skill. Returns True if it was disabled."""
+        if name in self.disabled_skills:
+            self.disabled_skills.discard(name)
+            self._scanned = False  # force re-scan
+            return True
+        return False
+
+    def disable_skill(self, name: str) -> bool:
+        """Disable a skill. Returns True if it was enabled."""
+        all_names = {s.name for s in self._all_skills()}
+        if name not in self.disabled_skills and name in all_names:
+            self.disabled_skills.add(name)
+            self._skills.pop(name, None)
+            return True
+        return False
+
+    def toggle_skill(self, name: str) -> str:
+        """Toggle a skill on/off. Returns new status: 'enabled' | 'disabled' | 'unknown'."""
+        all_names = {s.name for s in self._all_skills()}
+        if name not in all_names:
+            return "unknown"
+        if name in self.disabled_skills:
+            self.disabled_skills.discard(name)
+            self._scanned = False
+            return "enabled"
+        else:
+            self.disabled_skills.add(name)
+            self._skills.pop(name, None)
+            return "disabled"
+
+    def _all_skills(self) -> list[Skill]:
+        """Internal: scan all skills without filtering disabled."""
+        skills = []
+        for search_path in self.search_paths:
+            if not search_path.exists():
+                continue
+            for skill_dir in search_path.iterdir():
+                if not skill_dir.is_dir():
+                    continue
+                skill_file = skill_dir / "SKILL.md"
+                if skill_file.exists():
+                    try:
+                        skills.append(self._parse_skill(skill_dir.name, skill_file))
+                    except Exception:
+                        continue
+        return skills
 
     def create_skill(self, name: str, description: str, content: str,
                      author: str = "de BigBos", tags: list[str] | None = None) -> Skill | None:
