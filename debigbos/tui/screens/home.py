@@ -540,9 +540,13 @@ class SettingsDialog(ModalScreen[None]):
         prov = agent.config.providers.get(name)
         model_select = self.query_one("#settings-model-select", Select)
         if prov:
-            models = [m.id for m in prov.models]
+            # prov.models is already a list of strings (model IDs)
+            models = prov.models if isinstance(prov.models, list) else []
             model_select.set_options([(m, m) for m in models])
-            model_select.value = agent.config.active_model
+            if agent.config.active_model in models:
+                model_select.value = agent.config.active_model
+            elif models:
+                model_select.value = models[0]
 
     def _populate_skill_toggles(self) -> None:
         """Add switch toggles for every skill — grouped by category."""
@@ -555,6 +559,11 @@ class SettingsDialog(ModalScreen[None]):
             return
 
         skills = agent.skills.list_skills()
+
+        if not skills:
+            skill_list.mount(ModalLabel("[dim]No skills found.[/dim]"))
+            return
+
         # Group by category
         from collections import defaultdict
         groups: dict[str, list] = defaultdict(list)
@@ -571,7 +580,10 @@ class SettingsDialog(ModalScreen[None]):
         for cat in sorted_cats:
             items = groups[cat]
             # Category header
-            yield ModalLabel(f"\n[bold #5c9cf5]{cat}[/bold #5c9cf5]")
+            enabled_count = sum(1 for s in items if s.get("enabled", True))
+            skill_list.mount(ModalLabel(
+                f"\n[bold #5c9cf5]{cat}[/bold #5c9cf5]  [dim]({enabled_count}/{len(items)})[/dim]"
+            ))
             # Sort items: enabled first
             items.sort(key=lambda s: (not s.get("enabled", True), s.get("name", "")))
             for s in items:
@@ -583,12 +595,14 @@ class SettingsDialog(ModalScreen[None]):
                 self._skill_switches[name] = switch
 
                 status_icon = "[green]✓[/green]" if enabled else "[dim]✗[/dim]"
-                status_color = "green" if enabled else "dim"
-                label_text = f"[{status_color}]{status_icon} {name}[/{status_color}]"
+                label_text = f"  {status_icon} {name}"
                 if desc:
-                    label_text += f"\n   [dim italic]{desc[:80]}[/dim italic]"
+                    label_text += f"\n     [dim italic]{desc[:60]}[/dim italic]"
 
-                yield Horizontal(label_text, switch, classes="skill-row")
+                row = Horizontal(classes="skill-row")
+                row.mount(ModalLabel(label_text))
+                row.mount(switch)
+                skill_list.mount(row)
 
     @on(Select.Changed, "#settings-provider-select")
     def _on_provider_changed(self, event: Select.Changed) -> None:
@@ -2331,20 +2345,13 @@ class HomeScreen(Screen[Any]):
         """Copy selected text to clipboard, or fallback to last assistant response."""
         response_area = self.query_one("#response-area", ResponseArea)
 
-        # 1. Try to get selected text from response area
+        # 1. If there's a selection, copy via Textual's Screen-level copy
         try:
             sel = response_area.selection
-            if sel:
-                start_row, start_col = sel.start if hasattr(sel, 'start') else sel[0]
-                end_row, end_col = sel.end if hasattr(sel, 'end') else sel[1]
-                if start_row != end_row or start_col != end_col:
-                    # Get text from RichLog renderable
-                    renderable = response_area.renderable
-                    if renderable:
-                        text = str(renderable)
-                        if text and response_area.copy_to_clipboard(text.strip()):
-                            self.notify("Copied!", timeout=1.5)
-                            return
+            if sel and sel.start != sel.end:
+                # Use the app's built-in copy (copies current selection)
+                self.app.action_copy()
+                return
         except Exception:
             pass
 
