@@ -2687,7 +2687,10 @@ class HomeScreen(Screen[Any]):
             label._latest_version = new_version
 
         if confirmed:
-            await self._do_update()
+            try:
+                await self._do_update()
+            except Exception as e:
+                self.notify(f"Update error: {e}", severity="error")
 
     async def _do_update(self) -> None:
         """Pull latest code with live progress log and restart."""
@@ -2731,68 +2734,76 @@ class HomeScreen(Screen[Any]):
         import sys, os, asyncio
 
         async def run_update_with_output() -> bool:
-            if not repo_path:
-                log.write("[red]No repo path found![/red]")
-                return False
-
-            log.write("[dim]Fetching origin...[/dim]")
-            proc = await asyncio.create_subprocess_exec(
-                "git", "-C", repo_path, "fetch", "origin",
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-            )
-            stdout, _ = await proc.communicate()
-            if stdout:
-                for line in stdout.decode(errors="replace").splitlines()[:10]:
-                    log.write(f"[dim]{line}[/dim]")
-
-            if proc.returncode != 0:
-                log.write("[red]Fetch failed! Check network.[/red]")
-                return False
-
-            log.write("")
-            log.write("[bold]Incoming changes:[/bold]")
-            proc2 = await asyncio.create_subprocess_exec(
-                "git", "-C", repo_path, "log", "HEAD..origin/main", "--oneline",
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-            )
-            stdout2, _ = await proc2.communicate()
-            if stdout2 and stdout2.strip():
-                for line in stdout2.decode(errors="replace").splitlines():
-                    log.write(f"  [yellow]{line}[/yellow]")
-            else:
-                log.write("  [dim](no new commits)[/dim]")
-                log.write("")
-                log.write("[green]Already up to date — no restart needed.[/green]")
-                return False
-
-            log.write("")
-            log.write("[bold]Pulling...[/bold]")
-            proc3 = await asyncio.create_subprocess_exec(
-                "git", "-C", repo_path, "pull", "origin", "main",
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-            )
-            stdout3, _ = await proc3.communicate()
-            pull_output = stdout3.decode(errors="replace") if stdout3 else ""
-            for line in pull_output.splitlines():
-                log.write(f"  {line}")
-
-            if proc3.returncode != 0:
-                log.write("[red]Pull failed![/red]")
-                return False
-
-            # Sync skills
-            log.write("")
-            log.write("[dim]Syncing skills...[/dim]")
             try:
-                updater._sync_skills(show_output=False)
-                log.write("[green]Skills synced.[/green]")
-            except Exception:
-                log.write("[dim]Skills already up to date.[/dim]")
+                if not repo_path:
+                    log.write("[red]No repo path found![/red]")
+                    return False
 
-            log.write("")
-            log.write("[bold green]✅ Update complete![/bold green]")
-            log.write("[bold yellow]⚠ Restarting in 3 seconds...[/bold yellow]")
-            return True
+                log.write("[dim]Fetching origin...[/dim]")
+                proc = await asyncio.create_subprocess_exec(
+                    "git", "-C", repo_path, "fetch", "origin",
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+                )
+                stdout, _ = await proc.communicate()
+                if stdout:
+                    for line in stdout.decode(errors="replace").splitlines()[:10]:
+                        log.write(f"[dim]{line}[/dim]")
+
+                if proc.returncode != 0:
+                    log.write("[red]Fetch failed! Check network.[/red]")
+                    return False
+
+                log.write("")
+                log.write("[bold]Incoming changes:[/bold]")
+                proc2 = await asyncio.create_subprocess_exec(
+                    "git", "-C", repo_path, "log", "HEAD..origin/main", "--oneline",
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+                )
+                stdout2, _ = await proc2.communicate()
+                if stdout2 and stdout2.strip():
+                    for line in stdout2.decode(errors="replace").splitlines():
+                        log.write(f"  [yellow]{line}[/yellow]")
+                else:
+                    log.write("  [dim](no new commits)[/dim]")
+                    log.write("")
+                    log.write("[green]Already up to date — no restart needed.[/green]")
+                    return False
+
+                log.write("")
+                log.write("[bold]Pulling...[/bold]")
+                proc3 = await asyncio.create_subprocess_exec(
+                    "git", "-C", repo_path, "pull", "origin", "main",
+                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+                )
+                stdout3, _ = await proc3.communicate()
+                pull_output = stdout3.decode(errors="replace") if stdout3 else ""
+                for line in pull_output.splitlines():
+                    log.write(f"  {line}")
+
+                if proc3.returncode != 0:
+                    log.write("[red]Pull failed![/red]")
+                    return False
+
+                # Sync skills
+                log.write("")
+                log.write("[dim]Syncing skills...[/dim]")
+                try:
+                    updater._sync_skills(show_output=False)
+                    log.write("[green]Skills synced.[/green]")
+                except Exception:
+                    log.write("[dim]Skills already up to date.[/dim]")
+
+                log.write("")
+                log.write("[bold green]✅ Update complete![/bold green]")
+                log.write("[bold yellow]⚠ Restarting in 3 seconds...[/bold yellow]")
+                return True
+
+            except Exception as e:
+                log.write(f"[red]Error: {e}[/red]")
+                import traceback
+                for line in traceback.format_exc().splitlines()[-5:]:
+                    log.write(f"[dim red]{line}[/dim red]")
+                return False
 
         success = await run_update_with_output()
 
