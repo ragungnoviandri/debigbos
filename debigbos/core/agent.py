@@ -1080,10 +1080,23 @@ class BigBosAgent:
         if context:
             lesson_text = context
         else:
-            recent = [m for m in session.messages[-12:] if m.role in ("user", "assistant") and m.content]
-            lesson_text = "\n\n".join(
-                f"**{m.role}**: {m.content[:1000]}" for m in recent
-            )
+            # Gather all user + assistant messages (capped per-message and total)
+            MAX_PER_MSG = 800        # chars per message
+            MAX_TOTAL = 8000         # total chars for the lesson
+            all_msgs = [m for m in session.messages if m.role in ("user", "assistant") and m.content]
+            chunks = []
+            total = 0
+            for m in reversed(all_msgs):  # newest first — more relevant
+                snippet = m.content[:MAX_PER_MSG]
+                if total + len(snippet) > MAX_TOTAL:
+                    remaining = MAX_TOTAL - total
+                    if remaining > 200:
+                        chunks.append(f"**{m.role}**: {snippet[:remaining]}")
+                    break
+                chunks.append(f"**{m.role}**: {snippet}")
+                total += len(snippet)
+            chunks.reverse()  # back to chronological
+            lesson_text = "\n\n".join(chunks)
 
         tag_hint = f"\nUse these tags in metadata: [{tags}]." if tags else ""
 
