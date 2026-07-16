@@ -130,7 +130,7 @@ class SkillManager:
         return self._skills.get(name)
 
     def list_skills(self) -> list[dict[str, str]]:
-        """List available skills as {name, description, enabled} pairs."""
+        """List available skills as {name, description, enabled, category} pairs."""
         if not self._scanned:
             self.scan()
         # Also return ALL skills (including disabled) for settings UI
@@ -151,11 +151,42 @@ class SkillManager:
                             "name": skill.name,
                             "description": skill.description,
                             "enabled": skill.name not in self.disabled_skills,
+                            "category": self._extract_category(skill),
                         }
                     except Exception:
                         continue
         
         return list(all_skills.values())
+
+    def _extract_category(self, skill: Skill) -> str:
+        """Extract category from skill name prefix or first tag."""
+        # Try tags first
+        tags = skill.metadata.get("hermes", {}).get("tags", []) if isinstance(skill.metadata, dict) else []
+        if isinstance(tags, list) and len(tags) > 0:
+            cat = str(tags[0])
+            if cat:
+                return cat.title()
+        
+        # Fallback: name prefix mapping
+        name = skill.name
+        prefixes = {
+            "react-": "React", "vue-": "Vue",
+            "django-": "Django", "flask-": "Flask",
+            "github-": "GitHub", "git-": "Git",
+            "apple-": "Apple",
+            "docker-": "Docker",
+            "design-": "Design",
+            "test-": "Test", "tdd": "Test",
+            "fullstack-": "Full Stack",
+            "smartservices-": "Smart Services",
+            "opencode": "Developer",
+            "hermes-": "Hermes",
+            "ai-": "AI", "llm-": "LLM", "ml-": "ML",
+        }
+        for prefix, cat in prefixes.items():
+            if name.startswith(prefix):
+                return cat
+        return "Uncategorized"
 
     def enable_skill(self, name: str) -> bool:
         """Enable a skill. Returns True if it was disabled."""

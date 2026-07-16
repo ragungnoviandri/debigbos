@@ -404,10 +404,13 @@ class ToolLogWidget(Static):
 
 
 class ShortcutsWidget(Static):
-    """Keyboard shortcuts reference panel in sidebar."""
+    """Command palette reference in sidebar."""
 
     def render(self) -> str:
         shortcuts = [
+            # Title
+            ("[bold #5c9cf5]⌘ Command Palette[/bold #5c9cf5]", ""),
+            ("", ""),
             # Chat
             ("[bold #fab283]Chat[/bold #fab283]", ""),
             ("Enter", "Send"),
@@ -418,14 +421,14 @@ class ShortcutsWidget(Static):
             ("[bold #5c9cf5]Navigate[/bold #5c9cf5]", ""),
             ("Esc", "Focus Input"),
             ("Tab", "Plan ⇄ Build"),
-            ("Ctrl+P", "Palette"),
+            ("Ctrl+P", "Command Palette"),
             ("Ctrl+S", "Sessions"),
             ("Ctrl+M", "Models"),
             ("Ctrl+H", "Help"),
             ("", ""),
             # Actions
             ("[bold #a0d2a0]Actions[/bold #a0d2a0]", ""),
-            ("Ctrl+C", "Copy"),
+            ("Ctrl+C", "Copy Selection"),
             ("Ctrl+R", "Rename"),
             ("Ctrl+Q", "Quit"),
             ("Shift+Drag", "Select Text"),
@@ -542,7 +545,7 @@ class SettingsDialog(ModalScreen[None]):
             model_select.value = agent.config.active_model
 
     def _populate_skill_toggles(self) -> None:
-        """Add switch toggles for every skill."""
+        """Add switch toggles for every skill — grouped by category."""
         from textual.containers import Horizontal
         from textual.widgets import Label as ModalLabel, Switch
 
@@ -552,21 +555,40 @@ class SettingsDialog(ModalScreen[None]):
             return
 
         skills = agent.skills.list_skills()
-        skills.sort(key=lambda s: (not s["enabled"], s["name"]))
-
+        # Group by category
+        from collections import defaultdict
+        groups: dict[str, list] = defaultdict(list)
         for s in skills:
-            switch = Switch(value=s["enabled"], id=f"skill-switch-{s['name']}")
-            self._skill_switches[s["name"]] = switch
+            cat = s.get("category", "Uncategorized")
+            groups[cat].append(s)
 
-            status_icon = "[green]✓[/green]" if s["enabled"] else "[dim]✗[/dim]"
-            desc = s.get("description", "")
-            label_text = f"{status_icon} [bold]{s['name']}[/bold]"
-            if desc:
-                label_text += f"\n   [dim italic]{desc[:80]}[/dim italic]"
+        # Sort: enabled-first categories first
+        sorted_cats = sorted(groups.keys(), key=lambda c: (
+            -sum(1 for s in groups[c] if s.get("enabled", True)),
+            c,
+        ))
 
-            with Horizontal(classes="skill-row"):
-                yield ModalLabel(label_text)
-                yield switch
+        for cat in sorted_cats:
+            items = groups[cat]
+            # Category header
+            yield ModalLabel(f"\n[bold #5c9cf5]{cat}[/bold #5c9cf5]")
+            # Sort items: enabled first
+            items.sort(key=lambda s: (not s.get("enabled", True), s.get("name", "")))
+            for s in items:
+                name = s.get("name", "")
+                desc = s.get("description", "")[:80]
+                enabled = s.get("enabled", True)
+
+                switch = Switch(value=enabled, id=f"skill-switch-{name}")
+                self._skill_switches[name] = switch
+
+                status_icon = "[green]✓[/green]" if enabled else "[dim]✗[/dim]"
+                status_color = "green" if enabled else "dim"
+                label_text = f"[{status_color}]{status_icon} {name}[/{status_color}]"
+                if desc:
+                    label_text += f"\n   [dim italic]{desc[:80]}[/dim italic]"
+
+                yield Horizontal(label_text, switch, classes="skill-row")
 
     @on(Select.Changed, "#settings-provider-select")
     def _on_provider_changed(self, event: Select.Changed) -> None:
@@ -2306,20 +2328,23 @@ class HomeScreen(Screen[Any]):
             response_area.write("[dim]Session is clean — nothing to fix.[/dim]\n")
 
     def action_copy_text(self) -> None:
-        """Copy last assistant response to clipboard (or selected text in TUI)."""
+        """Copy selected text to clipboard, or fallback to last assistant response."""
         response_area = self.query_one("#response-area", ResponseArea)
 
-        # 1. Try to get selected text from response area (RichLog selected_text)
+        # 1. Try to get selected text from response area
         try:
             sel = response_area.selection
             if sel:
-                start, end = (sel.start, sel.end) if hasattr(sel, 'start') else (sel[0], sel[1])
-                if start != end:
-                    lines = response_area.lines
-                    text = "\n".join(lines[start.row:end.row + 1])[start.column:end.column]
-                    if text and response_area.copy_to_clipboard(text):
-                        self.notify("Copied selection!", timeout=1.5)
-                        return
+                start_row, start_col = sel.start if hasattr(sel, 'start') else sel[0]
+                end_row, end_col = sel.end if hasattr(sel, 'end') else sel[1]
+                if start_row != end_row or start_col != end_col:
+                    # Get text from RichLog renderable
+                    renderable = response_area.renderable
+                    if renderable:
+                        text = str(renderable)
+                        if text and response_area.copy_to_clipboard(text.strip()):
+                            self.notify("Copied!", timeout=1.5)
+                            return
         except Exception:
             pass
 
