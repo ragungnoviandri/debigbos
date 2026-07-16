@@ -352,7 +352,7 @@ class SidebarWidget(Static):
             lines.append(" [dim]No active session[/dim]")
             lines.append("")
 
-        lines.append(f" [bold]{self.mode.upper()}[/bold]  [{self.provider}/{self.model}]")
+        lines.append(f" [bold]{self.mode.upper()}[/bold]")
         lines.append("")
 
         limit = self.context_limit or 128000
