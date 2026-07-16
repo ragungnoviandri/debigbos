@@ -531,7 +531,7 @@ class AddProviderDialog(ModalScreen[str | None]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="add-provider-dialog", classes="modal-container"):
-            yield Label("[bold reverse]  ✨ Add Provider  [/bold reverse]", id="dialog-title")
+            yield Label(" ✨ Add Provider ", id="dialog-title")
             
             with Vertical(id="dialog-body"):
                 # Preset selector
@@ -1169,7 +1169,7 @@ class HomeScreen(Screen[Any]):
                 height: 10;
                 max-height: 80%;
                 background: #212121;
-                border: thick #fab283;
+                border: thick #5c9cf5;
                 padding: 1 2;
             }
             """
@@ -1487,7 +1487,7 @@ class HomeScreen(Screen[Any]):
             def compose(self) -> ComposeResult:
                 mode_class = "mode-build" if self._mode == "build" else "mode-plan"
                 with Vertical(id="commit-dialog", classes=f"modal-container {mode_class}"):
-                    yield Label("[bold reverse]  Commit  [/bold reverse]", id="dialog-title")
+                    yield Label(" Commit ", id="dialog-title")
                     with Vertical(id="dialog-body"):
                         if self._summary:
                             yield Label(f"[dim]{self._summary}[/dim]")
@@ -2414,7 +2414,7 @@ class HomeScreen(Screen[Any]):
 
             def compose(self) -> ComposeResult:
                 with Vertical(id="version-dialog", classes="modal-container"):
-                    yield ModalLabel("[bold reverse]  de BigBos Update  [/bold reverse]", id="dialog-title")
+                    yield ModalLabel(" de BigBos Update ", id="dialog-title")
                     yield ModalLabel("")
                     if self.is_update:
                         yield ModalLabel(f"[bold yellow]⬇ Update Available![/bold yellow]")
@@ -2538,7 +2538,7 @@ class HomeScreen(Screen[Any]):
                 width: 50;
                 height: auto;
                 background: #212121;
-                border: thick #fab283;
+                border: thick #5c9cf5;
                 padding: 1 2;
             }
             """

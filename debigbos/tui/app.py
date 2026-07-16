@@ -326,6 +326,19 @@ class BigBosApp(App[Any]):
         color: #fab283;
     }
 
+    /* ── Modal / Dialog ──────────────────────────────────── */
+    .modal-container {
+        background: #1a1a2e;
+        border: thick #5c9cf5;
+        padding: 1 2;
+    }
+    #dialog-title {
+        background: #5c9cf5;
+        color: #000000;
+        padding: 0 2;
+        text-style: bold;
+    }
+
     /* Scrollbar */
     Scrollbar {
         scrollbar-color: #4b4c5c;
