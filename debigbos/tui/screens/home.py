@@ -640,10 +640,11 @@ class SettingsDialog(ModalScreen[None]):
         agent.skills.disabled_skills = disabled
         agent.skills._scanned = False
 
-        # Persist to disk
-        from ...config.manager import ConfigManager
-        cm = ConfigManager()
-        cm.save(agent.config)
+        # Persist to global config
+        from pathlib import Path
+        config_path = Path.home() / ".config" / "deBigBos" / "config.json"
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+        agent.config_manager.save(config_path)
 
         self._home.notify("✅ Settings saved!", severity="success")
         self._home._update_sidebar()
