@@ -1027,7 +1027,7 @@ class HomeScreen(Screen[Any]):
                     sid = s["id"][:8]
                     src = s.get("source", "")
                     tag = f" [dim]({src})[/dim]" if src else ""
-                    response_area.write(f"  [dim]*[/dim] [@click=switch_session('{s['id']}')][cyan]{title}[/cyan][/] [dim]{sid}{tag}[/dim]\n")
+                    response_area.write(f"  [dim]*[/dim] [@click=show_sessions][cyan]{title}[/cyan][/] [dim]{sid}{tag}[/dim]\n")
             else:
                 response_area.write("  [dim](none yet — just start typing!)[/dim]\n")
 
