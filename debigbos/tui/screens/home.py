@@ -355,18 +355,19 @@ class SidebarWidget(Static):
         lines.append(f" [bold]{self.mode.upper()}[/bold]  [{self.provider}/{self.model}]")
         lines.append("")
 
-        if self.context_tokens > 0:
-            limit = self.context_limit or 128000
-            pct = min(100, int(self.context_tokens / limit * 100))
-            pct_color = "[red]" if pct > 80 else "[yellow]" if pct > 50 else ""
-            pct_end = "[/red]" if pct > 80 else "[/yellow]" if pct > 50 else ""
-            bar = self._make_bar(pct)
-            lines.append(" Context")
-            lines.append(f"  [dim]{self.context_tokens:,}[/dim]/[bold]{limit:,}[/bold] tokens")
-            lines.append(f"  {pct_color}{bar} {pct}% used{pct_end}")
-            if self.total_cost > 0:
-                lines.append(f"  ${self.total_cost:,.2f} spent")
-            lines.append("")
+        limit = self.context_limit or 128000
+        pct = min(100, int(self.context_tokens / limit * 100)) if self.context_tokens > 0 else 0
+        pct_color = "[red]" if pct > 80 else "[yellow]" if pct > 50 else ""
+        pct_end = "[/red]" if pct > 80 else "[/yellow]" if pct > 50 else ""
+        bar = self._make_bar(pct)
+        lines.append(" Context")
+        lines.append(f"  [dim]{self.context_tokens:,}[/dim]/[bold]{limit:,}[/bold] tokens")
+        lines.append(f"  {pct_color}{bar} {pct}% used{pct_end}")
+        if self.total_cost > 0:
+            lines.append(f"  ${self.total_cost:,.4f} spent")
+        else:
+            lines.append(f"  [dim]$0 spent[/dim]")
+        lines.append("")
 
         if self.skill_count:
             lines.append(f" Skills: {self.skill_count}")
