@@ -25,8 +25,8 @@ class DialogAlert(ModalScreen[bool]):
     DialogAlert > Center {
         width: 50;
         max-height: 20;
-        background: #1a1a2e;
-        border: thick #00d4ff;
+        background: #212121;
+        border: thick #fab283;
         padding: 1 2;
     }
     DialogAlert Label {
@@ -82,8 +82,8 @@ class DialogConfirm(ModalScreen[bool]):
     DialogConfirm > Center {
         width: 50;
         max-height: 22;
-        background: #1a1a2e;
-        border: thick #00d4ff;
+        background: #212121;
+        border: thick #fab283;
         padding: 1 2;
     }
     DialogConfirm Label {
@@ -149,8 +149,8 @@ class DialogPrompt(ModalScreen[str | None]):
     DialogPrompt > Center {
         width: 50;
         max-height: 22;
-        background: #1a1a2e;
-        border: thick #00d4ff;
+        background: #212121;
+        border: thick #fab283;
         padding: 1 2;
     }
     DialogPrompt Label {
@@ -217,8 +217,8 @@ class DialogSelect(ModalScreen[dict[str, Any]]):
     DialogSelect > Center {
         width: 50;
         height: 20;
-        background: #1a1a2e;
-        border: thick #00d4ff;
+        background: #212121;
+        border: thick #fab283;
         padding: 1 2;
     }
     DialogSelect Label {

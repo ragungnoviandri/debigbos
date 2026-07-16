@@ -29,7 +29,7 @@ class OpenAIProvider(ModelProvider):
         options: ModelOptions | None = None,
     ) -> ModelResponse:
         opts = options or ModelOptions(model=self.config.default_model)
-        formatted = self._format_messages(messages)
+        formatted = self._format_messages(messages, opts.model)
 
         kwargs: dict[str, Any] = {
             "model": opts.model,
@@ -137,7 +137,7 @@ class OpenAIProvider(ModelProvider):
         options: ModelOptions | None = None,
     ) -> AsyncIterator[str]:
         opts = options or ModelOptions(model=self.config.default_model)
-        formatted = self._format_messages(messages)
+        formatted = self._format_messages(messages, opts.model)
 
         kwargs: dict[str, Any] = {
             "model": opts.model,
@@ -155,29 +155,48 @@ class OpenAIProvider(ModelProvider):
             if chunk.choices and chunk.choices[0].delta.content:
                 yield chunk.choices[0].delta.content
 
-    def _format_messages(self, messages: list[Message]) -> list[dict[str, Any]]:
-        """Convert internal messages to OpenAI format."""
-        formatted = []
+    def _format_messages(self, messages: list[Message], model_name: str | None = None) -> list[dict[str, Any]]:
+        """Convert internal messages to OpenAI format.
+
+        DeepSeek upstream requires reasoning_content on every assistant message.
+        Reasoning role messages are folded into the preceding assistant's reasoning_content.
+        """
+        formatted: list[dict[str, Any]] = []
+        is_deepseek = "deepseek" in (model_name or self.config.default_model).lower()
+
         for m in messages:
             msg: dict[str, Any] = {"role": m.role}
 
+            # ——— reasoning role → fold into previous assistant ———
+            if m.role == "reasoning":
+                if formatted and formatted[-1].get("role") == "assistant":
+                    existing = formatted[-1].get("reasoning_content", "") or ""
+                    formatted[-1]["reasoning_content"] = (existing + "\n" + m.content).strip()
+                else:
+                    formatted.append(msg)
+                continue
+
             # ——— content handling ———
             if m.role == "assistant" and m.tool_calls:
-                # OpenAI spec: assistant with tool_calls → content=null (not "")
                 msg["content"] = m.content or None
             elif m.role == "tool":
                 msg["content"] = m.content or "(empty)"
                 if m.tool_call_id:
                     msg["tool_call_id"] = m.tool_call_id
-                if m.name:
-                    msg["name"] = m.name
                 formatted.append(msg)
                 continue
             elif m.content:
                 msg["content"] = m.content
             else:
-                # Skip empty-content messages for user/system/assistant roles
                 continue
+
+            # ——— reasoning_content on assistant messages ———
+            if m.role == "assistant":
+                if m.reasoning_content:
+                    msg["reasoning_content"] = m.reasoning_content
+                elif is_deepseek:
+                    # DeepSeek upstream requires reasoning_content on ALL assistant msgs
+                    msg["reasoning_content"] = ""
 
             # ——— tool_calls ———
             if m.tool_calls:

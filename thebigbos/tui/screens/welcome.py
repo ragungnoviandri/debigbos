@@ -1,4 +1,4 @@
-"""Welcome / splash screen — Hermes-style startup with banner, config, and tools overview."""
+"""Welcome/splash screen — OpenCode-style centered layout."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from textual.widgets import Header, Footer, Label, Static
 
 
 class WelcomeScreen(Screen[Any]):
-    """Welcome screen shown on startup with banner, config, tools, and skills."""
+    """Welcome screen shown on startup — OpenCode-style centered layout."""
 
     def __init__(
         self,
@@ -28,67 +28,49 @@ class WelcomeScreen(Screen[Any]):
         self._sessions: list[dict] = []
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True, name="TheBigBos")
+        yield Header(show_clock=True)
         with VerticalScroll():
-            # Banner
-            banner = r"""[bold cyan]
-   _____ _         ____  _       ____
-  |_   _| |__     | __ )(_) __ _| __ )  ___  ___
-    | | | '_ \    |  _ \| |/ _` |  _ \ / _ \/ __|
-    | | | | | |   | |_) | | (_| | |_) | (_) \__ \
-    |_| |_| |_|   |____/|_|\__, |____/ \___/|___/
-                            |___/
-[/bold cyan]"""
+            yield Label("")
+            yield Label("")
+            banner = r"""[bold #fab283]
+                 _  __   ____  _       ____
+              __|_|/_/  | __ )(_) __ _| __ )  ___  ___
+             / _  |     |  _ \| |/ _` |  _ \ / _ \/ __|
+            | |_| |     | |_) | | (_| | |_) | (_) \__ \   _   _   _
+             \__|_|     |____/|_|\__, |____/ \___/|___/  |_| |_| |_|
+                                 |___/
+
+[/bold #fab283]"""
             yield Label(banner)
+            yield Label("")
+            yield Label("")
 
-            # Welcome line
             if self._agent:
-                m = self._agent.config.active_model
                 p = self._agent.config.active_provider
-                yield Label(f"  [dim]AI Assistant with Soul, Memory & Skills  |  {p}/{m}[/dim]\n")
+                m = self._agent.config.active_model
+                yield Label(f"  [dim]d' BigBos...[/dim]")
+                yield Label(f"  [bold #fab283]{self._agent.config.mode.upper()}[/bold #fab283]  [secondary]{p}[/secondary]/[primary]{m}[/primary]  [dim]{self._workspace}[/dim]")
+                yield Label("")
 
-            # Config info + sessions
+            yield Label("  [dim]Type /help for commands  •  Ctrl+Q to quit  •  Enter to start[/dim]")
+            yield Label("")
+
             if self._agent:
-                provider = self._agent.config.active_provider
-                model = self._agent.config.active_model
-                soul = self._agent.soul.name
-                skills = len(self._agent.skills.list_skills())
-                providers = ", ".join(self._agent.providers.list_providers() or [provider])
-                ws = str(self._workspace or ".")
-                yield Label(f"  Model: {provider}/{model}  |  Soul: {soul}  |  Skills: {skills}  |  Workspace: {ws}\n")
-
-                # Tools
-                tools = self._agent.tools.get_tool_names()
-                yield Label(f"  [bold]Tools:[/bold] {', '.join(tools[:10])}{' +' if len(tools) > 10 else ''}\n")
-
-                # Skills list
-                skill_list = self._agent.skills.list_skills()
-                if skill_list:
-                    skill_names = ", ".join(s["name"] for s in skill_list[:8])
-                    yield Label(f"  [bold]Skills:[/bold] {skill_names}{' +' if len(skill_list) > 8 else ''}\n")
-
-                # Sessions preview
                 sessions = self._agent.memory.list_sessions(limit=5)
                 if sessions:
                     yield Label("  [bold]Recent Sessions:[/bold]")
                     for s in sessions[:5]:
-                        title = (s.get("title") or "Untitled")[:40]
+                        title = (s.get("title") or "Untitled")[:50]
                         src = f" [{s.get('source', '')}]" if s.get("source") else ""
-                        yield Label(f"    - {title}{src}")
-                yield Label("")
-
-            yield Label("  [bold]Press any key to start — session created on first message[/bold]")
-            yield Label("  /help for commands  |  Ctrl+Q to quit")
+                        yield Label(f"    • [cyan]{title}[/cyan]{src}")
 
         yield Footer()
 
     def on_mount(self) -> None:
-        """Check for updates and import sessions."""
         if self._agent:
             self._agent._ensure_sessions_imported()
             self._sessions = self._agent.memory.list_sessions(limit=30)
 
-        # Check for updates in background
         try:
             from ...core.updater import Updater
             u = Updater()
@@ -103,12 +85,14 @@ class WelcomeScreen(Screen[Any]):
             pass
 
     def on_key(self, event) -> None:
-        """Any key advances to home."""
         if hasattr(event, 'key') and event.key not in ("ctrl+q",):
             self._go_home()
 
     def _go_home(self) -> None:
-        """Transition to HomeScreen."""
         from .home import HomeScreen
         home = HomeScreen(agent=self._agent, workspace=self._workspace)
         self.app.push_screen(home)
+
+    def on_click(self, event) -> None:
+        if hasattr(event, 'button') and event.button == 1:
+            self._go_home() 

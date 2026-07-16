@@ -280,6 +280,12 @@ PROVIDER_CATALOG = {
         "env_var": "ANTHROPIC_API_KEY",
         "desc": "Anthropic - Claude Sonnet, Opus",
     },
+    "opencode-zen": {
+        "base_url": "https://opencode.ai/zen/v1",
+        "models": ["deepseek-v4-pro", "deepseek-v4-flash", "qwen-plus", "qwen-max"],
+        "env_var": "OPENCODE_ZEN_API_KEY",
+        "desc": "OpenCode Zen - DeepSeek, Qwen (free tier available)",
+    },
         "opencode-go": {
             "base_url": "https://opencode.ai/zen/go/v1",
             "models": ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v3", "deepseek-v3.2",
@@ -377,31 +383,78 @@ async def run_setup(args: argparse.Namespace) -> None:
     provider = providers[idx]
     info = PROVIDER_CATALOG[provider]
 
-    # Step 2: Pick model
+    # Step 2: API key / base URL — needed to fetch live models
+    print()
+    resolved_key = ""
+    if info["env_var"]:
+        resolved_key = os.environ.get(info["env_var"], "") or auth.get_key(provider) or ""
+        if not resolved_key:
+            prov_cfg = config.get("providers", {}).get(provider, {})
+            raw = prov_cfg.get("api_key", "")
+            if raw and not raw.startswith("${"):
+                resolved_key = raw
+        if not resolved_key:
+            print(f"Enter API key for {provider} (or set ${info['env_var']}):")
+            resolved_key = input("  API key: ").strip()
+
+    # If we got a key from any source, persist it to avoid double-ask later
+    if resolved_key and info["env_var"]:
+        os.environ[info["env_var"]] = resolved_key
+        auth.set_key(provider, resolved_key, info.get("base_url", ""))
+
+    # Step 3: Try to fetch live models from endpoint
+    live_models: list[str] = []
+    if info.get("base_url"):  # No API key needed for Ollama etc.
+        try:
+            import httpx
+            headers = {}
+            if resolved_key:
+                headers["Authorization"] = f"Bearer {resolved_key}"
+            url = info["base_url"].rstrip("/") + "/models"
+            resp = httpx.get(url, headers=headers, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                for m in data.get("data", []):
+                    mid = m.get("id", "")
+                    if mid and not any(skip in mid for skip in ["embedding", "tts", "whisper", "dall-e"]):
+                        live_models.append(mid)
+                if live_models:
+                    live_models.sort()
+        except Exception:
+            pass
+
+    if live_models:
+        model_list = live_models
+        print(f"\n  [fetched {len(live_models)} models from endpoint]")
+    else:
+        model_list = info["models"]
+        print(f"\n  [using default model list — live fetch failed]")
+
+    # Step 4: Pick model
     print()
     print(f"Models for [{provider}]:")
     print()
     current_model = config.get("active_model", "")
-    for j, model in enumerate(info["models"], 1):
+    for j, model in enumerate(model_list, 1):
         tag = " [CURRENT]" if current_model == model else ""
         print(f"  {j}. {model}{tag}")
 
     print()
-    model_choice = input(f"Pick model (1-{len(info['models'])}) [1]: ").strip()
+    model_choice = input(f"Pick model (1-{len(model_list)}) [1]: ").strip()
     if not model_choice:
         model_choice = "1"
     try:
         midx = int(model_choice) - 1
-        if midx < 0 or midx >= len(info["models"]):
+        if midx < 0 or midx >= len(model_list):
             print("Invalid choice.")
             return
     except ValueError:
         print("Invalid input.")
         return
 
-    model = info["models"][midx]
+    model = model_list[midx]
 
-    # Step 3: API key — save to auth.json (persistent), env var optional
+    # Save API key
     print()
     if info["env_var"]:
         env_val = os.environ.get(info["env_var"], "")
@@ -460,8 +513,8 @@ async def run_setup(args: argparse.Namespace) -> None:
     if provider not in config["providers"]:
         config["providers"][provider] = {
             "base_url": info["base_url"],
-            "models": info["models"],
-            "default_model": info["models"][0],
+            "models": model_list,
+            "default_model": model_list[0],
         }
         if info["env_var"]:
             config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
@@ -1054,9 +1107,11 @@ async def main_async() -> None:
 
     if args.command == "version":
         from thebigbos.core.updater import Updater
+        from thebigbos import get_version_string, get_build_number
         u = Updater()
-        print(f"  TheBigBos v{__import__('thebigbos').__version__}")
+        print(f"  TheBigBos {get_version_string()}")
         print(f"  Repo: https://github.com/ragungnoviandri/thebigbos")
+        print(f"  Build: {get_build_number()} commits")
         print(f"  Git: {u.get_current_git_ref()}")
         print(f"  Repo path: {u.repo_path or 'Not found'}")
         if getattr(args, "list", False):

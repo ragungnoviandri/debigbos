@@ -48,7 +48,7 @@ class MemoryConfig(BaseModel):
     session_load_limit: int = 200       # Max messages to load when resuming
     auto_load_session: bool = False     # Auto-load last session on startup
     session_keep_days: int = 0          # Auto-clean sessions older than N days (0=keep all)
-    resume_mode: str = "clean"          # "full" | "clean" (user+assistant only)
+    resume_mode: str = "full"          # "full" | "clean" (user+assistant only)
     save_reasoning: bool = True         # Persist thinking/reasoning to DB
 
 
@@ -201,7 +201,7 @@ class ConfigManager:
                 base[key] = value
 
     def _resolve_api_keys(self, config: Config) -> None:
-        """Resolve API keys with priority: env var > auth.json > OpenCode/Hermes auto-detect."""
+        """Resolve API keys with priority: env var > auth.json > auto-detect from external tools."""
         auth = get_auth_manager()
 
         # Map provider names to their env vars

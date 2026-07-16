@@ -30,6 +30,7 @@ class ProviderRegistry:
             try:
                 provider = self._create_provider(name, provider_cfg)
                 if provider:
+                    provider.name = name  # Use config key as canonical name
                     self._providers[name] = provider
                     # Auto-fetch live model list from provider API
                     await self._sync_models(name, provider, provider_cfg)
@@ -102,6 +103,7 @@ class ProviderRegistry:
         # Create and register
         provider = self._create_provider(name, cfg)
         if provider:
+            provider.name = name  # Use config key as canonical name
             self._providers[name] = provider
             return True
         return False

@@ -34,24 +34,24 @@ from .screens.welcome import WelcomeScreen
 
 class BigBosApp(App[Any]):
     """Main TheBigBos Textual application."""
-    TITLE = "theBigBos.ai"
+    TITLE = "d' BigBos.ai"
     
     CSS = """
     Screen {
-        background: #0d0d0d;
+        background: #0a0a0a;
     }
 
     #main-area {
         width: 3fr;
         height: 100%;
-        border-right: solid #00d4ff;
+        border-right: solid #4b4c5c;
     }
 
     #sidebar {
         width: 1fr;
         height: 100%;
         padding: 1;
-        background: #1a1a2e;
+        background: #212121;
     }
 
     #sidebar-info {
@@ -62,7 +62,7 @@ class BigBosApp(App[Any]):
     #response-area {
         height: 5fr;
         padding: 1 2;
-        background: #0d0d0d;
+        background: #0a0a0a;
         color: #e0e0e0;
         border: none;
     }
@@ -71,9 +71,9 @@ class BigBosApp(App[Any]):
         height: auto;
         max-height: 6;
         padding: 1 2;
-        background: #12122a;
-        border-top: solid #00d4ff;
-        color: #888899;
+        background: #252525;
+        border-top: solid #4b4c5c;
+        color: #6a6a6a;
     }
 
     #tool-log.hidden {
@@ -82,9 +82,9 @@ class BigBosApp(App[Any]):
 
     #prompt-area {
         height: auto;
-        padding: 1 2;
-        background: #1a1a2e;
-        border-top: solid #00d4ff;
+        padding: 2 1 1 1;
+        background: #212121;
+        border-top: solid #4b4c5c;
     }
 
     /* Mode toggle — vertical, left of chatbox */
@@ -102,18 +102,18 @@ class BigBosApp(App[Any]):
         margin-bottom: 0;
     }
 
-    /* Build mode (blue) */
+    /* Build mode (blue — code action, execution) */
     .mode-build {
-        background: #0055cc 80%;
-        border: solid #0088ff;
+        background: #5c9cf5 80%;
+        border: solid #5c9cf5;
         color: #ffffff;
     }
 
-    /* Plan mode (orange) */
+    /* Plan mode (orange — thinking, strategy) */
     .mode-plan {
-        background: #cc5500 80%;
-        border: solid #ff8800;
-        color: #ffffff;
+        background: #fab283 80%;
+        border: solid #fab283;
+        color: #000000;
     }
 
     #prompt-input {
@@ -121,8 +121,9 @@ class BigBosApp(App[Any]):
         height: auto;
         min-height: 3;
         max-height: 12;
-        border: solid #333355;
-        background: #0d0d0d;
+        border: none;
+        border-left: solid #fab283;
+        background: #0a0a0a;
         color: #e0e0e0;
         padding: 0 1;
     }
@@ -130,6 +131,8 @@ class BigBosApp(App[Any]):
     #send-btn {
         min-width: 10;
         height: 3;
+        background: #fab283;
+        color: #000000;
     }
 
     /* Sidebar widget */
@@ -206,8 +209,8 @@ class BigBosApp(App[Any]):
         width: 70%;
         height: auto;
         max-height: 90%;
-        background: #1a1a2e;
-        border: thick #00d4ff;
+        background: #212121;
+        border: thick #fab283;
         padding: 1 2;
         align: center middle;
     }
@@ -259,7 +262,7 @@ class BigBosApp(App[Any]):
         height: auto;
         min-height: 14;
         background: #0f0f23 95%;
-        border: thick #0088ff;
+        border: thick #5c9cf5;
         padding: 2 3;
         align: center middle;
     }
@@ -270,22 +273,27 @@ class BigBosApp(App[Any]):
         height: auto;
         max-height: 95%;
         background: #0f0f23 95%;
-        border: thick #00d4ff;
+        border: thick #fab283;
         padding: 2 3;
         align: center middle;
     }
 
     /* Commit dialog in Plan mode */
     #commit-dialog.mode-plan {
-        border: thick #ff8800;
+        border: thick #fab283;
+    }
+
+    /* Commit dialog in Build mode */
+    #commit-dialog.mode-build {
+        border: thick #5c9cf5;
     }
 
     #commit-msg-input {
         width: 100%;
         margin: 1 0;
         height: 5;
-        background: #0d0d0d;
-        border: solid #333355;
+        background: #0a0a0a;
+        border: solid #4b4c5c;
         color: #e0e0e0;
     }
 
@@ -299,15 +307,52 @@ class BigBosApp(App[Any]):
     DialogConfirm > Center,
     DialogPrompt > Center,
     DialogSelect > Center {
-        background: #1a1a2e;
-        border: thick #00d4ff;
+        background: #212121;
+        border: thick #fab283;
         padding: 1 2;
+    }
+
+    /* Status bar */
+    #status-bar {
+        height: 1;
+        padding: 0 2;
+        background: #212121;
+        color: #6a6a6a;
+    }
+
+    /* Header */
+    Header {
+        background: #0a0a0a;
+        color: #fab283;
     }
 
     /* Scrollbar */
     Scrollbar {
-        scrollbar-color: #333355;
-        scrollbar-color-hover: #444466;
+        scrollbar-color: #4b4c5c;
+        scrollbar-color-hover: #5c9cf5;
+    }
+
+    /* Keyboard shortcuts panel in sidebar */
+    #sidebar-shortcuts {
+        height: auto;
+        padding: 1;
+        margin-top: 1;
+        border-top: dashed #4b4c5c;
+        color: #6a6a6a;
+    }
+
+    /* Version label — clickable, subtle */
+    #sidebar-version {
+        height: auto;
+        padding: 1 1 1 1;
+        color: #6a6a6a;
+        text-style: dim;
+    }
+    #sidebar-version:hover {
+        color: #e0e0e0;
+    }
+    VersionLabel {
+        height: auto;
     }
     """
 

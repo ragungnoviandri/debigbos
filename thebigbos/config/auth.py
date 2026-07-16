@@ -3,7 +3,7 @@
 Priority (highest to lowest):
   1. Environment variable (temporary override)
   2. auth.json (persistent storage)
-  3. Auto-detect from OpenCode/Hermes auth files
+  3. Auto-detect from OpenCode and other external tools
 """
 
 import json
@@ -98,7 +98,7 @@ class AuthManager:
         if key:
             return key
 
-        # 3. Auto-detect from OpenCode/Hermes
+        # 3. Auto-detect from external tools
         key = self._detect_from_external(provider_name)
         if key:
             return key
@@ -106,7 +106,7 @@ class AuthManager:
         return ""
 
     def _detect_from_external(self, provider_name: str) -> str:
-        """Auto-detect API keys from OpenCode and Hermes auth files."""
+        """Auto-detect API keys from external tools like OpenCode."""
         # Map provider names to the keys used in external auth files
         provider_map = {
             "opencode-go": ["opencode-go", "opencode_go"],
@@ -126,29 +126,6 @@ class AuthManager:
                         return data[name]["key"]
             except Exception:
                 pass
-
-        # Check Hermes auth (platform-specific)
-        hermes_paths = [
-            Path.home() / "AppData" / "Local" / "hermes" / "auth.json",
-            Path.home() / ".local" / "share" / "hermes" / "auth.json",
-            Path.home() / "Library" / "Application Support" / "hermes" / "auth.json",
-        ]
-        for hp in hermes_paths:
-            if hp.exists():
-                try:
-                    data = json.loads(hp.read_text(encoding="utf-8"))
-                    pool = data.get("credential_pool", {})
-                    for name in search_names:
-                        if name in pool:
-                            for cred in pool[name]:
-                                src = cred.get("source", "")
-                                if src.startswith("env:"):
-                                    env_var = src[4:]
-                                    val = os.environ.get(env_var, "")
-                                    if val:
-                                        return val
-                except Exception:
-                    pass
 
         return ""
 

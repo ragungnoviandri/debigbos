@@ -26,13 +26,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from rich.align import Align
-from rich.box import ROUNDED
-from rich.panel import Panel
-from rich.text import Text as RichText
+
 
 from textual import on
 from textual.app import ComposeResult
+from textual.css.query import NoMatches
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
 from textual.reactive import reactive
@@ -52,6 +50,41 @@ from textual.widgets import (
 from ..keymap import KeymapRegistry
 from ...tools.git_utils import GitWorkspace
 from ...config.manager import ProviderConfig
+from ...models.provider import Message as ProviderMessage
+from ... import get_version_string, get_build_number
+
+from rich.markup import escape as _rich_escape
+import re
+
+
+def _strip_markup(text: str) -> str:
+    """Strip Rich markup tags to get plain text length."""
+    return re.sub(r"\[/?[^\]]*\]", "", text)
+
+
+class UpdateAvailable(Message):
+    """Posted when user clicks the version label while update is available."""
+
+    def __init__(self) -> None:
+        super().__init__()
+
+
+class VersionLabel(Static, can_focus=True):
+    """Clickable version display — green=updated, blue=update available."""
+
+    version: reactive[str] = reactive("")
+    update_available: reactive[bool] = reactive(False)
+
+    def on_click(self) -> None:
+        if self.update_available:
+            self.post_message(UpdateAvailable())
+
+    def render(self) -> str:
+        if self.update_available:
+            dot = "[bold blue]●[/bold blue]"
+        else:
+            dot = "[bold green]●[/bold green]"
+        return f" {dot} [dim]deBigBos {self.version}[/dim]"
 
 
 class ChatInput(TextArea):
@@ -63,9 +96,8 @@ class ChatInput(TextArea):
 
     def on_mount(self) -> None:
         self.styles.max_height = 6
-        self.border_title = "Enter=Send  Ctrl+J=newline  ↑↓=History"
-        self._history_index: int = -1  # -1 = not browsing history
-        self._saved_input: str = ""    # draft saved when browsing history
+        self._history_index: int = -1
+        self._saved_input: str = ""
 
     def clear(self):
         """Clear text and undo history to prevent out-of-bounds undo crashes."""
@@ -159,45 +191,54 @@ class ChatInput(TextArea):
         self.insert("\n")
 
 
+# Regex to strip Rich markup tags for plain-text length calculation
+import re as _re
+_MARKUP_TAG = _re.compile(r"\[/?[^\]]*\]")
+
+
+def _strip_markup(text: str) -> str:
+    return _MARKUP_TAG.sub("", text)
+
+
 class StatusBar(Static):
-    """Bottom status bar — model, context, timing, API debug."""
+    """Bottom status bar — 3-column: [indicator] dir | provider/model | stats."""
 
     model: reactive[str] = reactive("")
     provider: reactive[str] = reactive("")
     context_tokens: reactive[int] = reactive(0)
+    context_limit: reactive[int] = reactive(0)
+    total_cost: reactive[float] = reactive(0.0)
     mode: reactive[str] = reactive("build")
     elapsed: reactive[float] = reactive(0)
     thinking: reactive[bool] = reactive(False)
     done_flash: reactive[bool] = reactive(False)
     api_info: reactive[str] = reactive("")
     api_error: reactive[str] = reactive("")
+    git_info: reactive[str] = reactive("")
+    workspace: reactive[str] = reactive("")
 
     _spinner_frame: int = 0
     _think_start: float = 0.0
     SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
     def watch_thinking(self, thinking: bool) -> None:
-        """Flash 'done' indicator when thinking finishes."""
         if thinking:
             self._think_start = time.time()
             self.done_flash = False
         elif self._think_start > 0:
-            # Was thinking, now done — flash the checkmark
             self.done_flash = True
             self._spinner_frame = 0
             self.elapsed = time.time() - self._think_start
-            # Clear flash after 3 seconds
-            def _clear():
-                self.done_flash = False
-                self.refresh(layout=False)
-            self.set_timer(3.0, _clear)
+            self.set_timer(3.0, lambda: self._clear_done())
+
+    def _clear_done(self) -> None:
+        self.done_flash = False
+        self.refresh(layout=False)
 
     def on_mount(self) -> None:
-        """Animate spinner & elapsed time while thinking."""
         self.set_interval(0.1, self._tick)
 
     def _tick(self) -> None:
-        """Update spinner frame and live elapsed time."""
         if self.thinking:
             self._spinner_frame = (self._spinner_frame + 1) % len(self.SPINNER_FRAMES)
             if self._think_start > 0:
@@ -205,42 +246,59 @@ class StatusBar(Static):
             self.refresh(layout=False)
 
     def render(self) -> str:
-        lines = []
-        # Line 1: standard status
-        parts = []
-        if self.provider and self.model:
-            parts.append(f" {self.provider}/{self.model}")
-        ctx_str = f"ctx {self.context_tokens:,}" if self.context_tokens > 0 else "ctx --"
-        parts.append(ctx_str)
-        bar = self._make_bar(min(100, int(self.context_tokens / 128000 * 100))) if self.context_tokens > 0 else "[..........]"
-        parts.append(bar)
-        if self.elapsed > 0:
-            parts.append(f"{self.elapsed:.0f}s")
+        # ── Left: [spinner/checkmark] workspace ──
         if self.thinking:
             frame = self.SPINNER_FRAMES[self._spinner_frame]
-            parts.append(f"[yellow]{frame} thinking...[/yellow]")
+            indicator = f"[yellow]{frame}[/yellow] thinking"
         elif self.done_flash:
-            parts.append("[green]✓ done[/green]")
-        lines.append(" │ ".join(parts))
-
-        # Line 2: API debug (only when there's info)
-        if self.api_info:
-            lines.append(f" [dim]API: {self.api_info}[/dim]")
-        if self.api_error:
-            lines.append(f" [red]ERR: {self.api_error}[/red]")
-        return "\n".join(lines)
-
-    @staticmethod
-    def _make_bar(pct: int, width: int = 8) -> str:
-        filled = max(1, int(width * pct / 100))
-        if pct < 50:
-            color = ""
-        elif pct < 80:
-            color = "yellow"
+            indicator = "[green]✓ Done[/green]"
+        elif self.api_error:
+            indicator = f"[red]✗ {self.api_error[:20]}[/red]"
         else:
-            color = "red"
-        bar = "[" + "|" * filled + "." * (width - filled) + "]"
-        return f"[{color}]{bar}[/{color}]" if color else bar
+            indicator = "[dim]✓ Ready[/dim]"
+
+        ws = self.workspace or self.git_info or "~"
+        left = f"{indicator}  [dim]{ws}[/dim]"
+
+        # ── Center: provider/model ──
+        center = ""
+        if self.provider:
+            center = f"[primary]{self.provider}[/primary]/[secondary]{self.model}[/secondary]"
+
+        # ── Right: elapsed | ctx tokens (%) | cost ──
+        right_parts = []
+        if self.thinking or self.done_flash:
+            right_parts.append(f"[dim]{self.elapsed:.0f}s[/dim]")
+
+        if self.context_tokens > 0:
+            limit = self.context_limit or 128000
+            pct = min(100, int(self.context_tokens / limit * 100))
+            right_parts.append(f"[dim]ctx {self.context_tokens:,} ({pct}%)[/dim]")
+
+        if self.total_cost > 0:
+            right_parts.append(f"[green]${self.total_cost:.2f} spent[/green]")
+
+        right = "  ".join(right_parts) if right_parts else ""
+
+        # ── 3-column layout using container width ──
+        width = max(80, self.size.width)
+        third = width // 3
+
+        # Strip Rich markup for length calculation
+        left_plain = _strip_markup(left)
+        center_plain = _strip_markup(center)
+        right_plain = _strip_markup(right)
+
+        # Left: pad to fill first third
+        left_pad = max(0, third - len(left_plain))
+        # Center: pad both sides to fill middle third
+        center_pad = max(0, third - len(center_plain))
+        center_left = center_pad // 2
+        center_right = center_pad - center_left
+        # Right: pad to fill last third
+        right_pad = max(0, third - len(right_plain))
+
+        return f"{left}{' ' * left_pad}{' ' * center_left}{center}{' ' * center_right}{' ' * right_pad}{right}"
 
 
 class SidebarWidget(Static):
@@ -251,6 +309,8 @@ class SidebarWidget(Static):
     model: reactive[str] = reactive("")
     provider: reactive[str] = reactive("")
     context_tokens: reactive[int] = reactive(0)
+    context_limit: reactive[int] = reactive(0)
+    total_cost: reactive[float] = reactive(0.0)
     skill_count: reactive[int] = reactive(0)
     auto_approve: reactive[bool] = reactive(False)
     mode: reactive[str] = reactive("build")
@@ -262,49 +322,47 @@ class SidebarWidget(Static):
 
     def render(self) -> str:
         lines = []
-        lines.append("[bold cyan] Info[/bold cyan]")
-        lines.append(" ─────────────")
+        lines.append(f"[bold #fab283] d' BigBos[/bold #fab283]")
+        lines.append(f" [dim]#{self.session_id or '---'}[/dim]")
         lines.append("")
         if self.error_msg:
-            lines.append(f" [red]Error: {self.error_msg[:60]}[/red]")
+            lines.append(f" [red]{self.error_msg[:60]}[/red]")
             lines.append("")
         if self.thinking:
-            lines.append(" [bold yellow]...thinking...[/bold yellow]")
+            lines.append(" [yellow]⠋ thinking...[/yellow]")
             lines.append("")
         if self.session_id:
-            lines.append(f" Session: [dim]{self.session_id}[/dim]")
             title = self.session_title or "Untitled"
-            lines.append(f" Title: [bold]{title[:30]}[/bold]")
-            lines.append(" [dim]Ctrl+R to rename[/dim]")
+            lines.append(f" [bold]{title[:35]}[/bold]")
+            lines.append("")
         else:
             lines.append(" [dim]No active session[/dim]")
-            lines.append(" [dim]Start chatting to create one[/dim]")
-        lines.append("")
-        lines.append(f" Mode: [bold]{self.mode}[/bold]")
+            lines.append("")
+
+        lines.append(f" [bold]{self.mode.upper()}[/bold]  [{self.provider}/{self.model}]")
         lines.append("")
 
         if self.context_tokens > 0:
-            ctx_limit = 128000
-            pct = min(100, int(self.context_tokens / ctx_limit * 100))
+            limit = self.context_limit or 128000
+            pct = min(100, int(self.context_tokens / limit * 100))
+            pct_color = "[red]" if pct > 80 else "[yellow]" if pct > 50 else ""
+            pct_end = "[/red]" if pct > 80 else "[/yellow]" if pct > 50 else ""
             bar = self._make_bar(pct)
-            lines.append(f" Context: {self.context_tokens:,} tokens")
-            lines.append(f" Usage: {bar} {pct}%")
+            lines.append(" Context")
+            lines.append(f"  {limit:,} tokens")
+            lines.append(f"  {pct_color}{bar} {pct}% used{pct_end}")
+            if self.total_cost > 0:
+                lines.append(f"  ${self.total_cost:,.2f} spent")
             lines.append("")
 
         if self.skill_count:
             lines.append(f" Skills: {self.skill_count}")
         if self.auto_approve:
             lines.append(" Auto: [yellow]ON[/yellow]")
-
-        # Git info
         if self.git_branch:
             lines.append("")
-            lines.append("[bold cyan] Git[/bold cyan]")
-            lines.append(" ─────────────")
-            lines.append(f" Branch: [green]{self.git_branch}[/green]")
-            lines.append(f" Status: {self.git_status}")
-            if self.git_remote:
-                lines.append(f" Remote: [dim]{self.git_remote}[/dim]")
+            lines.append(f"[bold #5c9cf5] Git[/bold #5c9cf5]")
+            lines.append(f" [green]{self.git_branch}[/green] {self.git_status}")
         return "\n".join(lines)
 
     @staticmethod
@@ -331,29 +389,51 @@ class ToolLogWidget(Static):
         return "\n".join(lines)
 
 
+class ShortcutsWidget(Static):
+    """Keyboard shortcuts reference panel in sidebar."""
+
+    def render(self) -> str:
+        shortcuts = [
+            # Chat
+            ("[bold #fab283]Chat[/bold #fab283]", ""),
+            ("Enter", "Send"),
+            ("Ctrl+J", "New Line"),
+            ("↑ / ↓", "History"),
+            ("", ""),
+            # Nav
+            ("[bold #5c9cf5]Navigate[/bold #5c9cf5]", ""),
+            ("Esc", "Focus Input"),
+            ("Tab", "Plan ⇄ Build"),
+            ("Ctrl+P", "Palette"),
+            ("Ctrl+S", "Sessions"),
+            ("Ctrl+M", "Models"),
+            ("Ctrl+H", "Help"),
+            ("", ""),
+            # Actions
+            ("[bold #a0d2a0]Actions[/bold #a0d2a0]", ""),
+            ("Ctrl+C", "Copy"),
+            ("Ctrl+R", "Rename"),
+            ("Ctrl+Q", "Quit"),
+            ("Shift+Drag", "Select Text"),
+        ]
+
+        lines = []
+        for key, desc in shortcuts:
+            if not key and not desc:
+                lines.append("")
+            elif not desc:
+                lines.append(key)
+            else:
+                lines.append(f" [dim]{key:<14}[/dim] [dim italic]{desc}[/dim italic]")
+        return "\n".join(lines)
+
+
 class ResponseArea(RichLog):
     """Rich text area for model responses — selectable + copyable."""
 
     def on_mount(self) -> None:
         self.can_focus = True
-        self.border_title = "[dim]Click to focus · Shift+arrows to select · Ctrl+C to copy[/dim]"
         self.highlight = True
-
-    @property
-    def selected_text(self) -> str:
-        """Get currently selected text, if any."""
-        try:
-            sel = self.selection
-            if sel:
-                # self.selection returns a Selection or tuple
-                start, end = (sel.start, sel.end) if hasattr(sel, 'start') else (sel[0], sel[1])
-                if start != end:
-                    # Build text from the lines
-                    lines = self.lines
-                    return "\n".join(lines[start.row:end.row + 1])[start.column:end.column]
-        except Exception:
-            pass
-        return ""
 
     def copy_to_clipboard(self, text: str) -> bool:
         """Copy text to system clipboard. Returns True on success."""
@@ -414,7 +494,7 @@ class AddProviderDialog(ModalScreen[str | None]):
         "opencode-zen": {
             "label": "OpenCode Zen",
             "base_url": "https://opencode.ai/zen/v1",
-            "models": ["deepseek-v4-pro", "deepseek-v4-flash", "qwen-plus", "qwen-max"],
+            "models": ["deepseek-v4-pro", "deepseek-v4-flash", "deepseek-v3.2", "qwen-plus", "qwen-max"],
             "default_model": "deepseek-v4-pro",
         },
         "ollama": {
@@ -606,14 +686,18 @@ class HomeScreen(Screen[Any]):
         self._response = ""
         self._tool_log: list[dict[str, Any]] = []
         self._thinking = False
+        self._cancelled = False
+        self._chat_task: asyncio.Task | None = None
         self._initialized = False
         self._git: GitWorkspace | None = None
-        self._stream_bubble_open = False  # track live assistant bubble state
-        self._stream_reasoning_shown = False  # track reasoning bubble for this turn
+        self._session_started = False
+        self._stream_bubble_open = False
+        self._stream_reasoning_shown = False
+        self._reasoning_start = 0.0
 
     def compose(self) -> ComposeResult:
         """Build the layout."""
-        yield Header(show_clock=True, name="TheBigBos", icon="🦾")
+        yield Header(show_clock=True, name="TheBigBos")
 
         with Horizontal():
             # Main chat area
@@ -630,38 +714,45 @@ class HomeScreen(Screen[Any]):
 
             # Sidebar
             with VerticalScroll(id="sidebar"):
-                yield Label("[bold cyan]Sessions[/bold cyan]", id="sidebar-session-label")
+                yield Label("[bold #fab283]Sessions[/bold #fab283]", id="sidebar-session-label")
                 with Horizontal(id="session-controls"):
                     yield Select([], id="session-select", prompt="Select session...")
                     yield Button("🗑", variant="error", id="delete-session-btn", classes="icon-btn")
 
                 # Provider & Model selectors
-                yield Label("[bold cyan]Provider[/bold cyan]", id="sidebar-provider-label")
+                yield Label("[bold #5c9cf5]Provider[/bold #5c9cf5]", id="sidebar-provider-label")
                 with Horizontal(id="provider-controls"):
                     yield Select([], id="provider-select", prompt="Provider...")
                     yield Button("+", variant="success", id="add-provider-sidebar-btn", classes="icon-btn")
-                yield Label("[bold cyan]Model[/bold cyan]", id="sidebar-model-label")
+                yield Label("[bold #5c9cf5]Model[/bold #5c9cf5]", id="sidebar-model-label")
                 yield Select([], id="model-select", prompt="Model...")
 
                 yield SidebarWidget(id="sidebar-info")
+
+                # Keyboard shortcuts reference
+                yield ShortcutsWidget(id="sidebar-shortcuts")
+
+                # Version — fixed at bottom, clickable
+                yield VersionLabel(id="sidebar-version")
 
                 # Git actions in sidebar
                 with Horizontal(id="git-actions"):
                     yield Button("📦 Commit", variant="default", id="commit-btn")
                     yield Button("🚀 Push", variant="default", id="push-btn")
 
-        # Prompt area
+        # Prompt area — OpenCode-style: mode toggle | input field | send
         with Horizontal(id="prompt-area"):
-            # Mode toggle: single button — click or Tab to switch
             with Vertical(id="mode-toggle"):
-                yield Button("Plan", variant="warning", id="mode-toggle-btn", classes="mode-btn")
+                yield Button("BUILD", variant="primary", id="mode-toggle-btn", classes="mode-btn mode-build")
             yield ChatInput(
                 id="prompt-input",
                 classes="chat-input",
             )
-            yield Button("Send", variant="primary", id="send-btn")
+            yield Button("⏎", variant="primary", id="send-btn")
 
         yield StatusBar(id="status-bar")
+
+        self._session_started = False
 
     def _populate_session_select(self) -> None:
         """Populate the session dropdown with available sessions."""
@@ -774,7 +865,7 @@ class HomeScreen(Screen[Any]):
             select.value = options[0][1]
 
     @on(Select.Changed, "#provider-select")
-    def _on_provider_select_changed(self, event: Select.Changed) -> None:
+    async def _on_provider_select_changed(self, event: Select.Changed) -> None:
         """Handle provider selection — switch provider and repopulate models."""
         if not event.value or not self.agent or event.value is Select.NULL or event.value is Select.BLANK:
             return
@@ -785,10 +876,23 @@ class HomeScreen(Screen[Any]):
 
         # Switch provider
         self.agent.config.active_provider = new_provider
-        # Get first model for this provider as default
+
+        # Try to fetch live models from provider API
+        provider = self.agent.providers.get(new_provider)
+        cfg = self.agent.config.providers.get(new_provider)
+        if provider and cfg:
+            try:
+                live = await provider.fetch_models()
+                if live:
+                    cfg.models = live
+                    if cfg.default_model not in live:
+                        cfg.default_model = live[0]
+                    self.notify(f"Fetched {len(live)} models from {new_provider}")
+            except Exception:
+                pass  # Fall through to cached models
+
         models = self.agent.providers.list_models(new_provider)
         if not models:
-            cfg = self.agent.config.providers.get(new_provider)
             if cfg and cfg.models:
                 models = cfg.models
         if models:
@@ -857,6 +961,11 @@ class HomeScreen(Screen[Any]):
     async def on_mount(self) -> None:
         """Called when screen is mounted. Initialize agent."""
         KeymapRegistry.apply_to_screen(self)
+
+        # Init version display
+        self._init_version_label()
+        # Background update check
+        asyncio.create_task(self._check_for_updates())
 
         # Initialize agent if needed
         if not self._initialized:
@@ -936,7 +1045,7 @@ class HomeScreen(Screen[Any]):
         self._initialized = True
 
     def _on_agent_event(self, event_type: str, data: str) -> None:
-        """Handle agent events — bridge to Textual reactive system with WhatsApp-style bubbles."""
+        """Handle agent events — bridge to Textual reactive system, OpenCode-style."""
         response_area = self.query_one("#response-area", ResponseArea)
         tool_log = self.query_one("#tool-log", ToolLogWidget)
 
@@ -944,6 +1053,7 @@ class HomeScreen(Screen[Any]):
             self._thinking = True
             self._stream_bubble_open = False
             self._stream_reasoning_shown = False
+            self._reasoning_start = time.time()
             self._update_sidebar()
 
         elif event_type == "api_info":
@@ -961,12 +1071,14 @@ class HomeScreen(Screen[Any]):
             self._thinking = False
 
         elif event_type == "reasoning":
-            # Model's reasoning/thinking — show in dim bubble
-            if not self._stream_reasoning_shown and data:
-                bubble = self._render_bubble("reasoning", data[:800])
-                if bubble:
-                    response_area.write(bubble)
-                self._stream_reasoning_shown = True
+            if data:
+                elapsed = time.time() - self._reasoning_start if self._reasoning_start > 0 else 0
+                if not self._stream_reasoning_shown:
+                    response_area.write(f"[dim italic]  Thought [{elapsed:.1f}s][/dim italic]\n")
+                    if len(data) > 200:
+                        preview = data[:200] + "..."
+                        response_area.write(f"[dim italic]  {preview}[/dim italic]\n")
+                    self._stream_reasoning_shown = True
             self._update_sidebar()
 
         elif event_type == "response":
@@ -975,9 +1087,6 @@ class HomeScreen(Screen[Any]):
 
         elif event_type == "done":
             self._thinking = False
-            self._stream_bubble_open = False
-            self._stream_reasoning_shown = False
-            response_area.write("\n[dim green]✓[/dim green]")
             self._update_sidebar()
             self.query_one("#prompt-input", ChatInput).focus()
 
@@ -990,12 +1099,9 @@ class HomeScreen(Screen[Any]):
                         "args": tool.get("args", {}),
                         "status": "running",
                     })
-                    # Compact tool bubble
                     args_str = json.dumps(tool.get("args", {}))
                     short_args = args_str[:80] + ("..." if len(args_str) > 80 else "")
-                    response_area.write(
-                        self._render_bubble("tool", f"{tool['name']}({short_args})")
-                    )
+                    response_area.write(f"[dim]  ⚙ {tool['name']}({short_args})[/dim]\n")
                 tool_log.tool_entries = list(self._tool_log)
                 tool_log.refresh(layout=True)
             except Exception:
@@ -1011,7 +1117,7 @@ class HomeScreen(Screen[Any]):
                 tool_log.tool_entries = list(self._tool_log)
                 tool_log.refresh(layout=True)
                 count = len(names)
-                suffix = f"  [dim green]✔ {count} tool{'s' if count > 1 else ''} done[/dim green]"
+                suffix = f" [dim green]✔ {count} tool{'s' if count > 1 else ''} done[/dim green]"
                 response_area.write(suffix)
             except Exception:
                 pass
@@ -1049,8 +1155,8 @@ class HomeScreen(Screen[Any]):
                 width: 50;
                 height: 10;
                 max-height: 80%;
-                background: #1a1a2e;
-                border: thick #00d4ff;
+                background: #212121;
+                border: thick #fab283;
                 padding: 1 2;
             }
             """
@@ -1173,45 +1279,37 @@ class HomeScreen(Screen[Any]):
                 self._update_sidebar()
                 self._populate_session_select()
 
-    # ——— Chat bubbles (WhatsApp-style) ———
+    # ——— Chat message rendering (OpenCode-style) ———
 
     @staticmethod
-    def _render_bubble(role: str, content: str) -> Panel | Align | str:
-        """Render a WhatsApp-style chat bubble using Rich Panel.
-
-        User → right-aligned yellow, TheBigBos → left cyan, reasoning → dim italic, tool → compact grey.
-        """
+    def _render_message(role: str, content: str) -> str:
+        """Render a single message in OpenCode's clean terminal style."""
         if not content.strip():
             return ""
 
-        style_map: dict[str, tuple[str, str, str, str]] = {
-            # (title, title_style, border_style, text_style)
-            "user":        ("You",        "bold yellow",       "yellow",  ""),
-            "assistant":   ("TheBigBos",  "bold cyan",         "cyan",    ""),
-            "reasoning":   ("🧠 Thinking", "italic",            "grey70",  "dim italic grey70"),
-            "tool":        ("Tool",       "dim",               "grey50",  "dim grey50"),
-        }
-        title, title_style, border_style, text_style = style_map.get(role, ("", "", "white", ""))
-
-        # Trim content for each type
         limits = {"user": 1000, "assistant": 4000, "reasoning": 800, "tool": 200}
         limit = limits.get(role, 2000)
-        text = RichText(content[:limit], style=text_style)
-
-        panel = Panel(
-            text,
-            title=f"[{title_style}]{title}[/{title_style}]",
-            border_style=border_style,
-            box=ROUNDED,
-            padding=(0, 1),
-        )
+        text = content[:limit]
 
         if role == "user":
-            return Align.right(panel)
-        return panel
+            escaped = _rich_escape(text)
+            return f"[bold cyan]▸[/bold cyan] {escaped}"
+
+        if role == "assistant":
+            return _rich_escape(text)
+
+        if role == "reasoning":
+            escaped = _rich_escape(text)
+            return f"[dim italic]  Thought: {escaped}[/dim italic]"
+
+        if role == "tool":
+            escaped = _rich_escape(text)
+            return f"[dim]  ⚙ {escaped}[/dim]"
+
+        return _rich_escape(text)
 
     def _load_history(self) -> None:
-        """Display loaded session history as WhatsApp-style bubbles."""
+        """Display loaded session history — OpenCode-style clean rendering."""
         response_area = self.query_one("#response-area", ResponseArea)
         response_area.clear()
         session = self.agent.sessions.active
@@ -1219,20 +1317,27 @@ class HomeScreen(Screen[Any]):
             return
 
         resume_mode = session.metadata.get("_resume_mode", "full")
+        prev_role = None
 
         for msg in session.messages:
             if msg.role == "system":
                 content = msg.content
                 if any(kw in content for kw in ("[Context compacted", "[Showing last", "[Session summary", "[skipped", "tool/reasoning")):
-                    response_area.write(f"\n[dim italic]{content}[/dim italic]")
+                    response_area.write(f"\n[dim italic]{_rich_escape(content)}[/dim italic]")
                 continue
 
             if msg.role == "tool" and resume_mode == "clean":
                 continue  # skip tools in clean resume mode
 
-            bubble = self._render_bubble(msg.role, msg.content)
-            if bubble:
-                response_area.write(bubble)
+            # Add spacing between different user turns
+            if msg.role == "user" and prev_role and prev_role != "user":
+                response_area.write("\n")
+
+            rendered = self._render_message(msg.role, msg.content)
+            if rendered:
+                response_area.write(f"{rendered}\n")
+
+            prev_role = msg.role
 
     async def _load_more_history(self) -> None:
         """Load more messages from DB into the current session."""
@@ -1263,10 +1368,10 @@ class HomeScreen(Screen[Any]):
 
         session.metadata["_loaded_count"] = new_limit
         if new_limit < total:
-            session.messages.insert(0, Message(
-                role="system",
-                content=f"[Showing last {new_limit} of {total} total messages. Use /loadmore to load earlier messages.]",
-            ))
+                session.messages.insert(0, ProviderMessage(
+                    role="system",
+                    content=f"[Showing last {new_limit} of {total} total messages. Use /loadmore to load earlier messages.]",
+                ))
 
         session.messages = self.agent._sanitize_messages(session.messages)
         self._load_history()
@@ -1281,12 +1386,12 @@ class HomeScreen(Screen[Any]):
             self.query_one("#prompt-input", ChatInput).focus()
             return
 
-        # Show user message as WhatsApp-style bubble (right-aligned)
-        user_bubble = self._render_bubble("user", text)
-        response_area.write(user_bubble)
+        # Show user message — OpenCode style: bold cyan arrow
+        response_area.write(f"[bold cyan]▸[/bold cyan] {text}\n")
 
         if self.agent:
             self._thinking = True
+            self._toggle_send_button()
             self._response = ""
             self._tool_log = []
             self._update_sidebar()
@@ -1298,6 +1403,12 @@ class HomeScreen(Screen[Any]):
     @on(Button.Pressed, "#send-btn")
     async def _on_send_btn(self) -> None:
         """Send button clicked."""
+        if self._thinking:
+            # Acting as stop button — cancel current chat
+            self._cancelled = True
+            if self._chat_task and not self._chat_task.done():
+                self._chat_task.cancel()
+            return
         input_widget = self.query_one("#prompt-input", ChatInput)
         text = input_widget.text.strip()
         if text:
@@ -1385,7 +1496,7 @@ class HomeScreen(Screen[Any]):
                     self.dismiss()
 
             async def _generate_message(self) -> None:
-                """Use the active AI provider to generate a commit message from git diff."""
+                """Use the active AI provider + session context to generate a commit message."""
                 input_widget = self.query_one("#commit-msg-input", Input)
                 auto_btn = self.query_one("#auto-commit-btn", Button)
 
@@ -1395,27 +1506,85 @@ class HomeScreen(Screen[Any]):
                 auto_btn.disabled = True
                 auto_btn.label = "Generating..."
 
+                # --- Build smart fallback from session context + porcelain ---
+                files = git_ref.status_porcelain() if git_ref else []
+                file_names = [line[3:] for line in files] if files else []
+
+                # Infer commit type from porcelain status codes
+                status_codes = set(line[:2] for line in files) if files else set()
+                if any(c in ("A ", "AM", "??") for c in status_codes):
+                    commit_type = "feat"
+                elif any(c in ("M ", "MM", "R ") for c in status_codes):
+                    commit_type = "fix"
+                else:
+                    commit_type = "chore"
+
+                # Try session summary first (AI-generated, most descriptive)
+                # Only use it if actually meaningful — NOT session title (just first user message)
+                session_note = ""
+                if agent_ref and agent_ref.sessions.active:
+                    s = agent_ref.sessions.active
+                    if s.summary and len(s.summary) > 20:
+                        # Extract first sentence as topic hint
+                        first_sentence = s.summary.split(".")[0].strip()[:80]
+                        if first_sentence and len(first_sentence) > 10:
+                            session_note = first_sentence.lower()
+
+                # Build fallback: session summary > file list > generic
+                # NOTE: session.title is NOT used — it's just the first chat message, not descriptive
+                if session_note:
+                    smart_fallback = f"{commit_type}: {session_note}"[:72]
+                elif file_names:
+                    file_list = ", ".join(f.rsplit("/", 1)[-1] for f in file_names[:3])
+                    smart_fallback = f"{commit_type}: {file_list}"[:72]
+                else:
+                    smart_fallback = f"{commit_type}: update"
+
                 try:
                     diff_text = git_ref.diff_summary() if git_ref else ""
-                    if not diff_text or diff_text.strip().startswith("branch:") and "\ndiff:" not in diff_text:
-                        input_widget.value = "chore: update"
+
+                    # Fixed precedence: check diff emptiness properly
+                    has_diff = bool(diff_text) and "\ndiff:" in diff_text
+                    if not has_diff:
+                        input_widget.value = smart_fallback
                         return
 
                     from thebigbos.models.provider import Message, ModelOptions
                     provider = agent_ref.providers.active if agent_ref else None
                     if not provider:
-                        input_widget.value = "chore: update"
+                        input_widget.value = smart_fallback
                         return
 
+                    # --- Gather session context (what we've been doing) ---
+                    session_context = ""
+                    if agent_ref and agent_ref.sessions.active:
+                        session = agent_ref.sessions.active
+                        # Use auto-generated summary if available
+                        if session.summary:
+                            session_context = f"Session context (what we've been working on):\n{session.summary[:400]}\n\n"
+                        else:
+                            # Fallback: last 3 user/assistant exchanges
+                            recent = [
+                                m for m in session.messages[-10:]
+                                if m.role in ("user", "assistant") and m.content
+                            ][-6:]
+                            if recent:
+                                parts = []
+                                for m in recent:
+                                    role = "User" if m.role == "user" else "BigBos"
+                                    parts.append(f"[{role}]: {m.content[:200]}")
+                                session_context = "Recent conversation:\n" + "\n".join(parts) + "\n\n"
+
                     prompt = (
-                        "Write a SHORT git commit message for the changes below. "
+                        "Write a SHORT, specific git commit message for the changes below.\n"
                         "Use conventional commits: feat:, fix:, chore:, refactor:, docs:, style:, test:.\n"
                         "Rules:\n"
                         "- Single line, max 72 chars, present tense, imperative mood.\n"
-                        "- Be SPECIFIC — mention the file or feature changed, not vague like 'update code'.\n"
-                        "- If multiple files, summarize the main change, not every file.\n"
+                        "- Be SPECIFIC — mention what changed, not 'update code' or 'fix bug'.\n"
+                        "- Reference the intent from the session context above, not just the diff.\n"
                         "- Output ONLY the commit message, no quotes, no markdown, no explanation.\n\n"
-                        f"{diff_text}"
+                        f"{session_context}"
+                        f"Git changes:\n{diff_text}"
                     )
 
                     response = await provider.chat(
@@ -1433,20 +1602,20 @@ class HomeScreen(Screen[Any]):
                             f"AI commit message failed: {response.content[:120]}",
                             severity="warning",
                         )
-                        input_widget.value = "chore: update"
+                        input_widget.value = smart_fallback
                         return
 
                     msg = response.content.strip().strip('"').strip("'")
                     # Also guard against error-prefixed content that snuck through
                     if msg.startswith("[") and "] " in msg[:30]:
-                        input_widget.value = "chore: update"
+                        input_widget.value = smart_fallback
                         return
                     msg = msg.split("\n")[0].strip()
                     if len(msg) > 100:
                         msg = msg[:97] + "..."
-                    input_widget.value = msg or "chore: update"
+                    input_widget.value = msg or smart_fallback
                 except Exception:
-                    input_widget.value = "chore: update"
+                    input_widget.value = smart_fallback
                 finally:
                     self._generating = False
                     auto_btn.disabled = False
@@ -1607,28 +1776,41 @@ class HomeScreen(Screen[Any]):
             pass
 
     async def _run_chat(self, user_input: str) -> None:
-        """Run chat with streaming response — WhatsApp-style live bubbles."""
+        """Run chat with streaming response — OpenCode-style clean output."""
         response_area = self.query_one("#response-area", ResponseArea)
         sidebar = self.query_one("#sidebar-info", SidebarWidget)
         first_content = True
         try:
             async for chunk in self.agent.stream_chat(user_input):
+                if self._cancelled:
+                    response_area.write("\n[dim]── Cancelled[/dim]\n")
+                    break
                 if first_content and chunk.strip():
-                    # Open live assistant bubble header
-                    response_area.write("\n[bold cyan]▌ TheBigBos[/bold cyan]\n")
                     first_content = False
                 response_area.write(chunk)
+        except asyncio.CancelledError:
+            response_area.write("\n[dim]── Cancelled[/dim]\n")
         except Exception as e:
             error = str(e)[:100]
-            response_area.write(f"\n[red]❌ Error: {error}[/red]")
+            response_area.write(f"\n[red]Error: {error}[/red]")
             sidebar.error_msg = error
         finally:
             if not first_content:
-                response_area.write("\n")  # close bubble spacing
+                response_area.write("\n")
+                if self.agent:
+                    p = self.agent.config.active_provider
+                    m = self.agent.config.active_model
+                    mode = self.agent.config.mode.upper()
+                    response_area.write(f"[dim]── {mode} · {p}/{m}[/dim]\n")
             self._thinking = False
+            self._cancelled = False
+            self._chat_task = None
             sidebar.error_msg = ""
             self._update_sidebar()
-            self.query_one("#prompt-input", ChatInput).focus()
+            try:
+                self.query_one("#prompt-input", ChatInput).focus()
+            except NoMatches:
+                pass
 
     async def _handle_command(self, cmd: str) -> None:
         """Handle slash commands."""
@@ -1701,6 +1883,9 @@ class HomeScreen(Screen[Any]):
 
         elif cmd == "/copy":
             self._copy_last_response()
+
+        elif cmd == "/dump":
+            await self._dump_session()
 
         elif cmd.startswith("/model "):
             if self.agent:
@@ -1890,17 +2075,22 @@ class HomeScreen(Screen[Any]):
             response_area.write("[dim]Session is clean — nothing to fix.[/dim]\n")
 
     def action_copy_text(self) -> None:
-        """Copy selected text (if any) or last response to clipboard."""
+        """Copy last assistant response to clipboard (or selected text in TUI)."""
         response_area = self.query_one("#response-area", ResponseArea)
 
-        # 1. Try to get selected text from response area
-        selected = response_area.selected_text
-        if selected:
-            if response_area.copy_to_clipboard(selected):
-                self.notify("Copied selection!", timeout=1.5)
-            else:
-                self.notify("Copy failed", severity="warning")
-            return
+        # 1. Try to get selected text from response area (RichLog selected_text)
+        try:
+            sel = response_area.selection
+            if sel:
+                start, end = (sel.start, sel.end) if hasattr(sel, 'start') else (sel[0], sel[1])
+                if start != end:
+                    lines = response_area.lines
+                    text = "\n".join(lines[start.row:end.row + 1])[start.column:end.column]
+                    if text and response_area.copy_to_clipboard(text):
+                        self.notify("Copied selection!", timeout=1.5)
+                        return
+        except Exception:
+            pass
 
         # 2. Fallback: copy last assistant response
         self._copy_last_response()
@@ -1919,6 +2109,31 @@ class HomeScreen(Screen[Any]):
                 self.notify("Copy failed", severity="warning")
         else:
             self.notify("Nothing to copy", severity="warning")
+
+    async def _dump_session(self) -> None:
+        """Dump current session to a temp file so user can read/copy errors."""
+        import tempfile, pathlib
+        if not self.agent or not self.agent.sessions.active:
+            self.query_one("#response-area", ResponseArea).write("[yellow]No active session[/yellow]\n")
+            return
+        sess = self.agent.sessions.active
+        lines = [f"Session: {sess.id}", f"Title: {sess.title}", f"Messages: {len(sess.messages)}", ""]
+        for m in sess.messages:
+            head = f"[{m.role}]"
+            if m.name:
+                head += f" ({m.name})"
+            lines.append(head)
+            lines.append(m.content)
+            lines.append("")
+        text = "\n".join(lines)
+        dump_dir = pathlib.Path(tempfile.gettempdir()) / "thebigbos"
+        dump_dir.mkdir(parents=True, exist_ok=True)
+        dump_path = dump_dir / f"session-{sess.id[:12]}.txt"
+        dump_path.write_text(text, encoding="utf-8")
+        self.notify(f"Dumped to {dump_path}", timeout=5)
+        self.query_one("#response-area", ResponseArea).write(
+            f"[green]Session dumped:[/green] [dim]{dump_path}[/dim]\n"
+        )
 
     def _show_help(self) -> None:
         """Show help in the response area."""
@@ -2001,7 +2216,10 @@ class HomeScreen(Screen[Any]):
 
     def _update_sidebar(self) -> None:
         """Refresh sidebar with current session info."""
-        sidebar = self.query_one("#sidebar-info", SidebarWidget)
+        try:
+            sidebar = self.query_one("#sidebar-info", SidebarWidget)
+        except NoMatches:
+            return
         if not self.agent:
             return
 
@@ -2019,11 +2237,38 @@ class HomeScreen(Screen[Any]):
         status_bar = self.query_one("#status-bar", StatusBar)
         status_bar.model = self.agent.config.active_model
         status_bar.provider = self.agent.config.active_provider
-        status_bar.context_tokens = sidebar.context_tokens
+        status_bar.workspace = str(self.workspace) if self.workspace else ""
+        if self._git and self._git.is_repo:
+            try:
+                branch = self._git.current_branch()
+                status_bar.git_info = f"{self.workspace}:{branch}" if self.workspace else branch
+            except Exception:
+                status_bar.git_info = str(self.workspace) if self.workspace else ""
+        else:
+            status_bar.git_info = str(self.workspace) if self.workspace else ""
         if session:
-            status_bar.context_tokens = sidebar.context_tokens
+            try:
+                provider = self.agent.providers.active
+                if provider:
+                    tokens = provider.count_tokens(session.to_llm_format())
+                    sidebar.context_tokens = tokens
+                    status_bar.context_tokens = tokens
+                    # Context limit from model
+                    model = self.agent.config.active_model
+                    limit = provider.get_context_window(model)
+                    sidebar.context_limit = limit
+                    status_bar.context_limit = limit
+                    # Accumulated cost
+                    cost = self.agent.state.accumulated_cost
+                    sidebar.total_cost = cost
+                    status_bar.total_cost = cost
+            except Exception:
+                pass
         status_bar.mode = sidebar.mode
         status_bar.thinking = self._thinking
+
+        # Toggle send/stop button
+        self._toggle_send_button()
 
         # Determine mode — use config mode, not model name
         sidebar.mode = self.agent.config.mode
@@ -2031,16 +2276,93 @@ class HomeScreen(Screen[Any]):
         # Update mode button visuals
         self._update_mode_buttons()
 
-        # Token estimate
-        provider = self.agent.providers.active
-        if provider and session:
-            try:
-                tokens = provider.count_tokens(session.to_llm_format())
-                sidebar.context_tokens = tokens
-            except Exception:
-                sidebar.context_tokens = 0
+    def _toggle_send_button(self) -> None:
+        """Toggle send button ↔ stop button based on thinking state."""
+        try:
+            btn = self.query_one("#send-btn", Button)
+        except NoMatches:
+            return
+        if self._thinking:
+            btn.label = "■"
+            btn.variant = "error"
+            btn.add_class("stop-btn")
+            btn.tooltip = "Stop generation"
+        else:
+            btn.label = "⏎"
+            btn.variant = "primary"
+            btn.remove_class("stop-btn")
+            btn.tooltip = "Send message"
 
-    # Keybinding actions
+    # ── Version & Update ──────────────────────────────────────
+
+    def _init_version_label(self) -> None:
+        """Set the version label with current build number."""
+        try:
+            label = self.query_one("#sidebar-version", VersionLabel)
+            label.version = f"1.1.{get_build_number()}"
+        except NoMatches:
+            pass
+
+    async def _check_for_updates(self) -> None:
+        """Check for updates in background, update version label dot."""
+        try:
+            from ...core.updater import Updater
+            updater = Updater()
+            # Run check in thread to avoid blocking
+            new_version = await asyncio.to_thread(updater.check, force=False)
+            if new_version:
+                label = self.query_one("#sidebar-version", VersionLabel)
+                label.update_available = True
+                label.tooltip = f"Update available: {new_version} — click to update"
+        except Exception:
+            pass  # Silently fail — updates are optional
+
+    @on(UpdateAvailable)
+    async def _on_update_available(self, event: UpdateAvailable) -> None:
+        """Handle click on version label when update is available."""
+        event.stop()
+        from textual.screen import ModalScreen
+        from textual.widgets import Label as ModalLabel
+
+        # Show confirmation
+        class ConfirmUpdate(ModalScreen[bool]):
+            BINDINGS = [("y", "yes", "Yes"), ("n", "no", "No"), ("escape", "no", "No")]
+            def compose(self):
+                yield ModalLabel("Update deBigBos to latest version?")
+                yield ModalLabel("[dim]This will git pull and restart.[/dim]")
+            def action_yes(self): self.dismiss(True)
+            def action_no(self): self.dismiss(False)
+
+        confirmed = await self.app.push_screen_wait(ConfirmUpdate())
+        if confirmed:
+            await self._do_update()
+
+    async def _do_update(self) -> None:
+        """Pull latest code and restart the app."""
+        status = self.query_one("#status-bar", StatusBar)
+        status_bar = status
+        status_bar.api_info = "Updating..."
+        self._update_sidebar()
+
+        try:
+            from ...core.updater import Updater
+            updater = Updater()
+            success = await asyncio.to_thread(updater.update, show_output=False)
+            if success:
+                self.notify("Updated! Restarting...", severity="success")
+                await asyncio.sleep(1.5)
+                # Restart by replacing the current process
+                import sys, os
+                os.execv(sys.executable, [sys.executable] + sys.argv)
+            else:
+                self.notify("Already up to date", severity="information")
+        except Exception as e:
+            self.notify(f"Update failed: {e}", severity="error")
+        finally:
+            status_bar.api_info = ""
+            self._update_sidebar()
+
+    # ── Keybinding actions ────────────────────────────────────
     def action_show_help(self) -> None:
         self._show_help()
 
@@ -2070,8 +2392,8 @@ class HomeScreen(Screen[Any]):
             RenameDialog > Vertical {
                 width: 50;
                 height: auto;
-                background: #1a1a2e;
-                border: thick #00d4ff;
+                background: #212121;
+                border: thick #fab283;
                 padding: 1 2;
             }
             """
@@ -2131,9 +2453,10 @@ class HomeScreen(Screen[Any]):
             return
         mode = self.agent.config.mode
         btn = self.query_one("#mode-toggle-btn", Button)
-        btn.label = mode.upper()
+        btn.label = "BUILD" if mode == "build" else "PLAN"
+        btn.variant = "primary" if mode == "build" else "warning"
         
-        # Build = blue (primary), Plan = orange (warning)
+        # Build = blue, Plan = orange
         if mode == "build":
             btn.remove_class("mode-plan")
             btn.add_class("mode-build")

@@ -94,35 +94,22 @@ Only ask clarifying questions when genuinely uncertain — otherwise act.
 
     def welcome_banner(self, model: str = "", provider: str = "", workspace: str = "",
                        skills: int = 0, tools: int = 0, sessions: int = 0) -> str:
-        """Return a rich welcome banner for new sessions / startup."""
-        name = self._random_emoji()
-
+        """Return a rich welcome banner for new sessions / startup — OpenCode-style."""
         lines = [
             f"",
-            f"[bold cyan]  ╔══════════════════════════════════════════════╗[/bold cyan]",
-            f"[bold cyan]  ║[/bold cyan]  {name}  [bold white]TheBigBos[/bold white] — AI Assistant with Soul  {name}  [bold cyan]║[/bold cyan]",
-            f"[bold cyan]  ╚══════════════════════════════════════════════╝[/bold cyan]",
+            f"[bold #fab283]  d' BigBos[/bold #fab283]  [dim]AI Assistant with Soul[/dim]",
             f"",
         ]
 
-        # Personalize
-        if self.user_name:
-            lines.append(f"  [bold]Hey {self.user_name}![/bold] Ready to ship?")
-        else:
-            lines.append(f"  [bold]{self.config.greeting}[/bold]")
-
-        lines.append(f"")
-
-        # Quick status dashboard
         items = []
         if provider and model:
-            items.append(f"[cyan]{provider}[/cyan]/[green]{model}[/green]")
+            items.append(f"[#fab283]{provider}[/#fab283]/[#5c9cf5]{model}[/#5c9cf5]")
         if workspace:
-            items.append(f"📁 [dim]{workspace}[/dim]")
-        items.append(f"🧠 [yellow]{skills} skills[/yellow]")
-        items.append(f"🔧 [magenta]{tools} tools[/magenta]")
+            items.append(f"[dim]{workspace}[/dim]")
+        items.append(f"[yellow]{skills} skills[/yellow]")
+        items.append(f"[magenta]{tools} tools[/magenta]")
         if sessions:
-            items.append(f"💬 [blue]{sessions} sessions[/blue]")
+            items.append(f"[blue]{sessions} sessions[/blue]")
 
         lines.append(f"  {'  │  '.join(items)}")
         lines.append(f"")
@@ -131,10 +118,4 @@ Only ask clarifying questions when genuinely uncertain — otherwise act.
 
         return "\n".join(lines)
 
-    @staticmethod
-    def _random_emoji() -> str:
-        """Return a random emoji from a curated set."""
-        import random
-        emojis = ["🚀", "⚡", "🔥", "💡", "🛠️", "🎯", "🏗️", "💪", "🎸", "🦾",
-                   "🧠", "✨", "🌟", "💎", "🔮", "🎪", "🏄", "🎨", "🤖", "🦄"]
-        return random.choice(emojis)
+

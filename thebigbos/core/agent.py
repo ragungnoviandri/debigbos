@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Callable
 
 from ..config.manager import Config, ConfigManager
-from ..models.provider import Message, ModelOptions, ModelResponse, ToolCall, ToolResult
+from ..models.provider import Message, ModelOptions, ModelResponse, ToolCall, ToolResult, estimate_cost
 from ..models.registry import ProviderRegistry
 from .memory import MemoryManager
 from .session import Session, SessionManager
@@ -418,6 +418,7 @@ class BigBosAgent:
         return Message(
             role=m["role"],
             content=m["content"],
+            reasoning_content=m.get("reasoning_content", ""),
             tool_calls=tool_calls,
             tool_call_id=m.get("tool_call_id"),
             name=m.get("name"),
@@ -551,10 +552,19 @@ class BigBosAgent:
                 self._emit("response", error_msg)
                 break
 
+            # Track cost from usage
+            if response.usage:
+                input_tokens = response.usage.get("input", 0)
+                output_tokens = response.usage.get("output", 0)
+                self.state.accumulated_cost += estimate_cost(
+                    self.config.active_model, input_tokens, output_tokens
+                )
+
             # Save assistant message
             assistant_msg = Message(
                 role="assistant",
                 content=response.content,
+                reasoning_content=response.reasoning_content,
                 tool_calls=response.tool_calls,
             )
             session.add_message(assistant_msg)
@@ -569,7 +579,8 @@ class BigBosAgent:
             if response.content and response.finish_reason != "error":
                 self.memory.save_message(session.id, "assistant", response.content,
                                          tool_calls=[{"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-                                                     for tc in response.tool_calls] if response.tool_calls else None)
+                                                     for tc in response.tool_calls] if response.tool_calls else None,
+                                         reasoning_content=response.reasoning_content or None)
                 self._emit("response", response.content)
                 final_response += response.content
             elif response.content and response.finish_reason == "error":
@@ -671,6 +682,14 @@ class BigBosAgent:
                 yield f"\n[Error: {e}]"
                 break
 
+            # Track cost from usage
+            if response.usage:
+                input_tokens = response.usage.get("input", 0)
+                output_tokens = response.usage.get("output", 0)
+                self.state.accumulated_cost += estimate_cost(
+                    self.config.active_model, input_tokens, output_tokens
+                )
+
             # Check for API-level errors in the response
             if response.finish_reason == "error":
                 self._emit("api_error", response.content[:200])
@@ -687,7 +706,8 @@ class BigBosAgent:
             if response.content:
                 self.memory.save_message(session.id, "assistant", response.content,
                                          tool_calls=[{"id": tc.id, "name": tc.name, "arguments": tc.arguments}
-                                                     for tc in response.tool_calls] if response.tool_calls else None)
+                                                     for tc in response.tool_calls] if response.tool_calls else None,
+                                         reasoning_content=response.reasoning_content or None)
                 yield response.content
             elif not response.reasoning_content:
                 # Neither content nor reasoning — model might have returned empty
@@ -696,6 +716,7 @@ class BigBosAgent:
             assistant_msg = Message(
                 role="assistant",
                 content=response.content,
+                reasoning_content=response.reasoning_content,
                 tool_calls=response.tool_calls,
             )
             session.add_message(assistant_msg)
@@ -880,6 +901,8 @@ class BigBosAgent:
             )
             session.summary = response.content
             self.memory.save_session_summary(session.id, response.content)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             pass
 

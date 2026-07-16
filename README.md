@@ -1,6 +1,6 @@
 # TheBigBos
 
-AI-powered CLI assistant with persistent memory, soul, skills, git integration, and multi-model support. Built with Python + Textual TUI — inspired by OpenCode and Hermes.
+AI-powered CLI assistant with persistent memory, soul, skills, git integration, and multi-model support. Built with Python + Textual TUI — inspired by OpenCode.
 
 ```
    _____ _         ____  _       ____
