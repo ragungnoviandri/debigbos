@@ -446,10 +446,10 @@ class ShortcutsWidget(Static):
 
 
 class ResponseArea(RichLog):
-    """Rich text area for model responses — selectable + copyable."""
+    """Rich text area for model responses — selectable + copyable, never steals focus."""
 
     def on_mount(self) -> None:
-        self.can_focus = True
+        self.can_focus = False  # Focus stays on chat input
         self.highlight = True
 
     def copy_to_clipboard(self, text: str) -> bool:
@@ -862,6 +862,7 @@ class HomeScreen(Screen[Any]):
         ("ctrl+h", "show_help", "Help"),
         ("ctrl+s", "show_sessions", "Pick Session"),
         ("ctrl+c", "copy_text", "Copy"),
+        ("ctrl+a", "select_all", "Select All"),
         ("ctrl+r", "rename_session", "Rename Session"),
         ("ctrl+m", "show_models", "Models"),
         ("tab", "toggle_mode", "Toggle Plan/Build"),
@@ -2340,6 +2341,23 @@ class HomeScreen(Screen[Any]):
             self._load_history()
         else:
             response_area.write("[dim]Session is clean — nothing to fix.[/dim]\n")
+
+    def action_select_all(self) -> None:
+        """Select all text in the focused widget (input or response area)."""
+        # Try input first (usually focused)
+        try:
+            focused = self.focused
+            if focused and hasattr(focused, 'select_all'):
+                focused.select_all()
+                return
+        except Exception:
+            pass
+        # Fallback: select all in response area
+        try:
+            response = self.query_one("#response-area", ResponseArea)
+            response.select_all()
+        except Exception:
+            pass
 
     def action_copy_text(self) -> None:
         """Copy selected text to clipboard, or fallback to last assistant response."""
