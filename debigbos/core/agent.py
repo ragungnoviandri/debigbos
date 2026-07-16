@@ -241,11 +241,47 @@ class BigBosAgent:
 
     def start_session(self) -> Session:
         """Start a new conversation session."""
+        # Auto-save current session as memory before switching
+        self._auto_save_session_memory()
         session = self.sessions.create_session()
         self.memory.create_session(session.id)
         self.state = AgentState()
         self._emit("session_started", json.dumps({"id": session.id}))
         return session
+
+    def _auto_save_session_memory(self) -> None:
+        """Save current session's key learnings as a long-term memory entry."""
+        try:
+            current = self.sessions.active
+            if not current or len(current.messages) < 4:
+                return  # Not enough conversation to save
+
+            user_msgs = [m.content for m in current.messages if m.role == "user"]
+            assistant_msgs = [m.content for m in current.messages if m.role == "assistant"]
+            if not user_msgs:
+                return
+
+            # Build a summary from first user message + key exchanges
+            title = current.title or user_msgs[0][:80]
+            content = f"Session: {title}\n\n"
+            content += "\n\n".join(
+                f"User: {u[:300]}\nAssistant: {a[:300]}"
+                for u, a in zip(user_msgs[-5:], assistant_msgs[-5:])
+            )
+
+            import uuid
+            from .memory import MemoryEntry
+            entry = MemoryEntry(
+                id=str(uuid.uuid4()),
+                session_id=current.id,
+                content=content[:3000],
+                summary=title[:120],
+                tags=["auto-saved", "session"],
+                importance=0.7,
+            )
+            self.memory.remember(entry)
+        except Exception:
+            pass  # Never crash on memory save failures
 
     def continue_session(self, session_id: str) -> Session | None:
         """Continue a session — load from de BigBos DB or external source on demand.
@@ -258,6 +294,9 @@ class BigBosAgent:
         """
         # If already loaded in memory, just switch
         if session_id in self.sessions.sessions:
+            # Auto-save current session before switching
+            if self.sessions.active and self.sessions.active.id != session_id:
+                self._auto_save_session_memory()
             self.sessions.switch_session(session_id)
             # Load cost from DB for this session
             self.state.accumulated_cost = self.memory.get_session_cost(session_id)
@@ -265,6 +304,8 @@ class BigBosAgent:
             return self.sessions.active
 
         # Register session with correct ID (no more mismatched dict keys!)
+        # Auto-save current session before loading a different one
+        self._auto_save_session_memory()
         session = self.sessions.register_session(session_id)
 
         # Try loading from de BigBos DB first
@@ -766,6 +807,9 @@ class BigBosAgent:
 
         skills_prompt = self.skills.get_skill_prompt()
 
+        # Cross-session RAG: recall relevant past context
+        rag_context = self._build_rag_context()
+
         # Mode-dependent tool constraints
         if self.config.mode == "plan":
             mode_rule = (
@@ -794,8 +838,42 @@ class BigBosAgent:
             for name, agent_cfg in self.config.agents.items():
                 subagent_prompt += f"\n- **{name}**: {agent_cfg.description}"
 
-        extra = f"{skills_prompt}\n{mode_rule}\n{tools_prompt}\n{subagent_prompt}"
+        extra = f"{rag_context}\n{skills_prompt}\n{mode_rule}\n{tools_prompt}\n{subagent_prompt}"
         return self.soul.build_system_prompt(extra_context=extra, facts=facts_text)
+
+    def _build_rag_context(self) -> str:
+        """Build cross-session RAG context from past memory entries."""
+        try:
+            session = self.sessions.active
+            if not session or not session.messages:
+                return ""
+
+            # Build a query from the session title + first user message
+            user_msgs = [m.content for m in session.messages if m.role == "user"]
+            if not user_msgs:
+                return ""
+
+            # Use session title + first user message as query
+            title = session.title or ""
+            query = f"{title} {user_msgs[0]}"[:500]
+
+            # Recall similar memories from past sessions
+            memories = self.memory.recall(query, k=3)
+            if not memories:
+                return ""
+
+            lines = ["\n\n## Relevant Past Context"]
+            lines.append("You've discussed related topics before. Use this as background:")
+            lines.append("")
+            for m in memories:
+                # Only include if from a different session
+                if m.session_id != session.id:
+                    snippet = m.content[:300].replace("\n", " ")
+                    lines.append(f"- **{m.summary or 'Past discussion'}**: {snippet}...")
+            lines.append("")
+            return "\n".join(lines) if len(lines) > 3 else ""
+        except Exception:
+            return ""
 
     # ——— Context compaction ———
 
