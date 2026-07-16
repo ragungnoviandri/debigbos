@@ -144,6 +144,30 @@ class BigBosApp(App[Any]):
         padding: 0 1;
         margin-top: 1;
     }
+    .icon-btn {
+        min-width: 3;
+        width: auto;
+        padding: 0 1;
+        border: none;
+        background: transparent;
+    }
+    .icon-btn:hover {
+        background: #333;
+    }
+
+    #sidebar-header {
+        height: auto;
+        align: center middle;
+    }
+    #sidebar-header #sidebar-session-label {
+        width: 1fr;
+        margin-top: 0;
+    }
+    #sidebar-header #settings-btn {
+        width: 3;
+        min-width: 3;
+        dock: right;
+    }
 
     #session-select {
         margin: 0 1;

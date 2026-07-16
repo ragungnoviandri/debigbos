@@ -486,8 +486,8 @@ class SettingsDialog(ModalScreen[None]):
         with Vertical(id="settings-dialog", classes="modal-container"):
             yield ModalLabel(" ⚙ Settings ", id="dialog-title")
             with TabbedContent(id="settings-tabs"):
-                # Tab 1: General
-                with TabPane("⚙ General", id="tab-general"):
+                # Tab 1: AI Models
+                with TabPane("🤖 AI Models", id="tab-general"):
                     yield ModalLabel("")
                     yield ModalLabel("[bold]Active Provider[/bold]")
                     yield ModalLabel("[dim]Set the default AI provider for new sessions.[/dim]")
@@ -604,166 +604,12 @@ class SettingsDialog(ModalScreen[None]):
         agent.skills._scanned = False
 
         # Persist to disk
-        from ..config.manager import ConfigManager
+        from ...config.manager import ConfigManager
         cm = ConfigManager()
         cm.save(agent.config)
 
         self._home.notify("✅ Settings saved!", severity="success")
         self._home._update_sidebar()
-
-    def action_close(self) -> None:
-        self.dismiss(None)
-
-
-class SettingsDialog(ModalScreen[None]):
-    """Settings dialog with tabs: General + Skills."""
-
-    BINDINGS = [("escape", "close", "Close"), ("q", "close", "Close")]
-
-    def __init__(self, screen: "HomeScreen"):
-        super().__init__()
-        self._screen = screen
-        self._skill_switches: dict = {}
-
-    def compose(self) -> ComposeResult:
-        with Vertical(id="settings-dialog", classes="modal-container"):
-            yield Label(" ⚙ Settings ", id="dialog-title")
-            with TabbedContent(id="settings-tabs"):
-                # Tab 1: General
-                with TabPane("⚙ General", id="tab-general"):
-                    yield Label("")
-                    yield Label("[bold]Active Provider[/bold]")
-                    yield Label("[dim]Set the default AI provider.[/dim]")
-                    yield Select([], id="settings-provider-select", prompt="Provider...")
-                    yield Label("")
-                    yield Label("[bold]Active Model[/bold]")
-                    yield Label("[dim]Set the default model.[/dim]")
-                    yield Select([], id="settings-model-select", prompt="Model...")
-
-                # Tab 2: Skills
-                with TabPane("🛠 Skills", id="tab-skills"):
-                    yield Label("")
-                    yield Label("[bold]Enable / Disable Skills[/bold]")
-                    yield Label("[dim]Toggle skills on/off. Disabled skills hidden from AI.[/dim]")
-                    yield Label("")
-                    yield VerticalScroll(id="skill-toggle-list")
-
-            yield Label("")
-            with Horizontal():
-                yield Button("Save & Close", variant="primary", id="settings-save-btn")
-                yield Button("Cancel", variant="default", id="settings-cancel-btn")
-
-    def on_mount(self) -> None:
-        agent = self._screen.agent
-        if not agent:
-            return
-
-        # Populate provider select
-        prov_select = self.query_one("#settings-provider-select", Select)
-        providers = list(agent.config.providers.keys())
-        prov_select.set_options([(p, p) for p in providers])
-        prov_select.value = agent.config.active_provider
-
-        # Populate model select
-        model_select = self.query_one("#settings-model-select", Select)
-        self._update_model_options(agent.config.active_provider)
-
-        # Populate skill toggles
-        self._populate_skill_toggles()
-
-    def _update_model_options(self, provider_name: str) -> None:
-        agent = self._screen.agent
-        if not agent:
-            return
-        prov = agent.config.providers.get(provider_name)
-        model_select = self.query_one("#settings-model-select", Select)
-        if prov and prov.models:
-            models = [m.id for m in prov.models]
-            model_select.set_options([(m, m) for m in models])
-            model_select.value = agent.config.active_model
-        else:
-            model_select.set_options([])
-
-    @on(Select.Changed, "#settings-provider-select")
-    def _on_provider_changed(self, event: Select.Changed) -> None:
-        if event.value:
-            self._update_model_options(str(event.value))
-
-    def _populate_skill_toggles(self) -> None:
-        skill_list = self.query_one("#skill-toggle-list", VerticalScroll)
-        agent = self._screen.agent
-        if not agent:
-            return
-
-        skills = agent.skills.list_skills()
-        if not skills:
-            skill_list.mount(Label("[dim]No skills found.[/dim]"))
-            return
-
-        # Sort: enabled first, then alphabetically
-        skills.sort(key=lambda s: (not s.get("enabled", True), s.get("name", "")))
-
-        for s in skills:
-            name = s.get("name", "")
-            desc = s.get("description", "")[:80]
-            enabled = s.get("enabled", True)
-
-            switch = Switch(value=enabled, id=f"skill-switch-{name}")
-            self._skill_switches[name] = switch
-            
-            status_icon = "[green]✓[/green]" if enabled else "[dim]✗[/dim]"
-            status_color = "green" if enabled else "dim"
-            
-            label_text = f"[{status_color}]{status_icon} {name}[/{status_color}]"
-            
-            with Horizontal(classes="skill-row"):
-                yield Label(label_text)
-                yield switch
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "settings-save-btn":
-            self._save_settings()
-            self.dismiss(None)
-        elif event.button.id == "settings-cancel-btn":
-            self.dismiss(None)
-
-    def _save_settings(self) -> None:
-        agent = self._screen.agent
-        if not agent:
-            return
-
-        # Save provider & model
-        try:
-            prov_select = self.query_one("#settings-provider-select", Select)
-            model_select = self.query_one("#settings-model-select", Select)
-            if prov_select.value:
-                agent.config.active_provider = str(prov_select.value)
-                # Also switch active provider in runtime
-                agent.providers.set_active(str(prov_select.value))
-            if model_select.value:
-                agent.config.active_model = str(model_select.value)
-        except Exception:
-            pass
-
-        # Save skill toggles
-        disabled = set()
-        for name, switch in self._skill_switches.items():
-            if not switch.value:
-                disabled.add(name)
-        agent.config.skills.disabled_skills = list(disabled)
-        agent.skills.disabled_skills = disabled
-        agent.skills._scanned = False  # Force re-scan
-
-        # Persist to disk
-        try:
-            from ...config.manager import ConfigManager
-            cm = ConfigManager()
-            cm.save(agent.config)
-        except Exception:
-            pass
-
-        self._screen.notify("✅ Settings saved!", severity="success")
-        self._screen._update_sidebar()
 
     def action_close(self) -> None:
         self.dismiss(None)
@@ -1029,18 +875,18 @@ class HomeScreen(Screen[Any]):
 
             # Sidebar
             with VerticalScroll(id="sidebar"):
-                yield Label("[bold #fab283]Sessions[/bold #fab283]", id="sidebar-session-label")
+                with Horizontal(id="sidebar-header"):
+                    yield Label("[bold #fab283]Sessions[/bold #fab283]", id="sidebar-session-label")
+                    yield Button("⚙", variant="default", id="settings-btn", classes="icon-btn")
                 with Horizontal(id="session-controls"):
                     yield Select([], id="session-select", prompt="Select session...")
                     yield Button("🗑", variant="error", id="delete-session-btn", classes="icon-btn")
 
                 # Provider & Model selectors
-                with Horizontal(id="session-controls-row"):
-                    yield Label("[bold #5c9cf5]Provider[/bold #5c9cf5]", id="sidebar-provider-label")
+                yield Label("[bold #5c9cf5]Provider[/bold #5c9cf5]", id="sidebar-provider-label")
                 with Horizontal(id="provider-controls"):
                     yield Select([], id="provider-select", prompt="Provider...")
                     yield Button("+", variant="success", id="add-provider-sidebar-btn", classes="icon-btn")
-                    yield Button("⚙", variant="default", id="settings-btn", classes="icon-btn")
                 yield Label("[bold #5c9cf5]Model[/bold #5c9cf5]", id="sidebar-model-label")
                 yield Select([], id="model-select", prompt="Model...")
 
