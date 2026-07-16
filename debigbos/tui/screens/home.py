@@ -501,9 +501,21 @@ class SettingsDialog(ModalScreen[None]):
                     else:
                         yield ModalLabel("  [dim]No agent loaded[/dim]")
                     yield ModalLabel("")
-                    # Provider management
                     yield ModalLabel("[bold]Providers[/bold]")
-                    yield VerticalScroll(id="provider-list")
+                    # Provider rows — inline in compose
+                    if agent and agent.config.providers:
+                        for name, cfg in agent.config.providers.items():
+                            is_active = name == agent.config.active_provider
+                            marker = "[green]●[/green]" if is_active else "○"
+                            models = cfg.models if isinstance(cfg.models, list) else []
+                            model_options = [(m, m) for m in models] if models else [("none", "")]
+                            active_model = cfg.default_model or (models[0] if models else "")
+                            with Horizontal(classes="provider-row"):
+                                yield ModalLabel(f"  {marker} [bold]{name}[/bold]")
+                                yield Select(model_options, prompt="Model", id=f"model-{name}", value=active_model)
+                                yield ModalButton("✎", variant="default", id=f"edit-provider-btn-{name}", classes="icon-btn")
+                    else:
+                        yield ModalLabel("  [dim]No providers configured[/dim]")
                     yield ModalLabel("")
                     with Horizontal():
                         yield ModalButton("+ Add Provider", variant="success", id="add-provider-btn")
@@ -522,48 +534,12 @@ class SettingsDialog(ModalScreen[None]):
                 yield ModalButton("Cancel", variant="default", id="settings-cancel-btn")
 
     def on_mount(self) -> None:
-        """Populate provider list and skill toggles."""
-        self._populate_provider_list()
+        """Populate skill toggles."""
         self._populate_skill_toggles()
-
-    def _populate_provider_list(self) -> None:
-        """Populate provider list in AI Provider tab."""
-        from textual.containers import Horizontal
-        from textual.widgets import Label as ModalLabel, Button as ModalButton, Select
-        try:
-            container = self.query_one("#provider-list", VerticalScroll)
-        except NoMatches:
-            return
-        agent = self._home.agent
-        if not agent:
-            container.mount(ModalLabel("  [dim]No agent loaded[/dim]"))
-            return
-
-        providers = agent.config.providers
-        if not providers:
-            container.mount(ModalLabel("  [dim]No providers configured[/dim]"))
-            return
-
-        for name, cfg in providers.items():
-            is_active = name == agent.config.active_provider
-            marker = "[green]●[/green]" if is_active else "○"
-            
-            # Model select for this provider
-            models = cfg.models if isinstance(cfg.models, list) else []
-            model_options = [(m, m) for m in models] if models else [("none", "")]
-            active_model = cfg.default_model or (models[0] if models else "")
-            
-            row = Horizontal(
-                ModalLabel(f"  {marker} [bold]{name}[/bold]"),
-                Select(model_options, prompt="Model", id=f"model-{name}", value=active_model),
-                ModalButton("✎", variant="default", id=f"edit-provider-btn-{name}", classes="icon-btn"),
-                classes="provider-row"
-            )
-            container.mount(row)
 
     @on(Button.Pressed, "#add-provider-btn")
     async def _on_add_provider_dialog(self) -> None:
-        """Open the Add Provider dialog."""
+        """Open the Add Provider dialog, then refresh settings."""
         agent = self._home.agent
         if not agent:
             return
@@ -571,17 +547,10 @@ class SettingsDialog(ModalScreen[None]):
         dialog = AddProviderDialog(existing)
         result = await self.app.push_screen_wait(dialog)
         if result:
-            # Refresh provider list
-            self._clear_provider_list()
-            self._populate_provider_list()
-
-    def _clear_provider_list(self) -> None:
-        """Clear the provider list container."""
-        try:
-            container = self.query_one("#provider-list", VerticalScroll)
-            container.remove_children()
-        except NoMatches:
-            pass
+            # Re-open settings to show new provider
+            self.dismiss(None)
+            await asyncio.sleep(0.1)
+            await self._home._show_settings()
 
     def _populate_skill_toggles(self) -> None:
         """Add switch toggles for every skill — grouped by category."""
@@ -709,9 +678,10 @@ class SettingsDialog(ModalScreen[None]):
         if result:
             cfg.base_url = result["endpoint"]
             cfg.api_key = result["apikey"]
-            # Clear and repopulate
-            self._clear_provider_list()
-            self._populate_provider_list()
+            # Re-open settings to show changes
+            self.dismiss(None)
+            await asyncio.sleep(0.1)
+            await self._home._show_settings()
             self._home.notify(f"✅ Provider '{name}' updated!")
 
     def _save_settings(self) -> None:
