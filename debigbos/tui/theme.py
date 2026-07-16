@@ -59,7 +59,7 @@ class ThemeManager:
             candidates = [
                 Path.cwd() / path,
                 Path.cwd() / ".bigbos" / "themes" / Path(path).name,
-                Path.home() / ".config" / "thebigbos" / "themes" / Path(path).name,
+                Path.home() / ".config" / "deBigBos" / "themes" / Path(path).name,
             ]
             for candidate in candidates:
                 if candidate.exists():

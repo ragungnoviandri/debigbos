@@ -1,4 +1,4 @@
-# TheBigBos
+# de BigBos
 
 AI-powered CLI assistant with persistent memory, soul, skills, git integration, and multi-model support. Built with Python + Textual TUI — inspired by OpenCode.
 
@@ -35,10 +35,10 @@ AI-powered CLI assistant with persistent memory, soul, skills, git integration, 
 
 ```bash
 # Windows
-powershell -c "irm https://raw.githubusercontent.com/ragungnoviandri/thebigbos/main/install.ps1 | iex"
+powershell -c "irm https://raw.githubusercontent.com/ragungnoviandri/deBigBos/main/install.ps1 | iex"
 
 # macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/ragungnoviandri/thebigbos/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ragungnoviandri/deBigBos/main/install.sh | bash
 ```
 
 The installer handles everything: clone repo, setup Python venv, install dependencies, add to PATH.
@@ -46,10 +46,10 @@ The installer handles everything: clone repo, setup Python venv, install depende
 ### For Developers (Editable)
 
 ```bash
-git clone https://github.com/ragungnoviandri/thebigbos
-cd thebigbos
+git clone https://github.com/ragungnoviandri/deBigBos
+cd deBigBos
 pip install -e .
-thebigbos setup
+deBigBos setup
 ```
 
 Editable mode — code changes take effect immediately. No need to reinstall.
@@ -58,13 +58,13 @@ Editable mode — code changes take effect immediately. No need to reinstall.
 
 ```bash
 # 1. Interactive setup — pick model + API key
-thebigbos setup
+deBigBos setup
 
 # 2. Start chatting (TUI mode)
-thebigbos
+deBigBos
 
 # 3. Or headless
-thebigbos run "bikin hello world"
+deBigBos run "bikin hello world"
 ```
 
 ## Commands
@@ -73,22 +73,22 @@ thebigbos run "bikin hello world"
 
 | Command | Description |
 |---------|-------------|
-| `thebigbos` | Start interactive TUI |
-| `thebigbos chat` | Start TUI (explicit) |
-| `thebigbos run "query"` | Headless single query |
-| `thebigbos setup` | Interactive model + API key setup |
-| `thebigbos configure` | View or change config |
-| `thebigbos init` | Initialize `.bigbos/` in project |
-| `thebigbos install` | Install global config |
-| `thebigbos import hermes` | Import sessions from Hermes |
-| `thebigbos import opencode` | Import sessions from OpenCode |
-| `thebigbos import all --dry-run` | Preview import |
-| `thebigbos sessions list` | List all sessions |
-| `thebigbos sessions rename <id> <title>` | Rename a session |
-| `thebigbos version` | Show version + git info |
-| `thebigbos update` | Check for and install updates |
-| `thebigbos update --check` | Check for updates only |
-| `thebigbos uninstall` | Remove TheBigBos (keeps config) |
+| `deBigBos` | Start interactive TUI |
+| `deBigBos chat` | Start TUI (explicit) |
+| `deBigBos run "query"` | Headless single query |
+| `deBigBos setup` | Interactive model + API key setup |
+| `deBigBos configure` | View or change config |
+| `deBigBos init` | Initialize `.bigbos/` in project |
+| `deBigBos install` | Install global config |
+| `deBigBos import hermes` | Import sessions from Hermes |
+| `deBigBos import opencode` | Import sessions from OpenCode |
+| `deBigBos import all --dry-run` | Preview import |
+| `deBigBos sessions list` | List all sessions |
+| `deBigBos sessions rename <id> <title>` | Rename a session |
+| `deBigBos version` | Show version + git info |
+| `deBigBos update` | Check for and install updates |
+| `deBigBos update --check` | Check for updates only |
+| `deBigBos uninstall` | Remove de BigBos (keeps config) |
 
 ### TUI Keybindings
 
@@ -125,10 +125,10 @@ thebigbos run "bikin hello world"
 Config files are merged from multiple locations (highest to lowest priority):
 
 1. `.bigbos/config.json` — Per-project overrides
-2. `thebigbos.json` — Project config
-3. `~/.config/thebigbos/config.json` — Global config
+2. `deBigBos.json` — Project config
+3. `~/.config/deBigBos/config.json` — Global config
 
-### Example `thebigbos.json`
+### Example `deBigBos.json`
 
 ```json
 {
@@ -141,10 +141,10 @@ Config files are merged from multiple locations (highest to lowest priority):
     }
   },
   "soul": {
-    "name": "TheBigBos",
+    "name": "de BigBos",
     "persona": "A sharp, witty AI assistant. Direct and concise.",
     "tone": "casual but professional",
-    "greeting": "Yo! TheBigBos here. What are we building today?"
+    "greeting": "Yo! de BigBos here. What are we building today?"
   },
   "memory": {
     "compaction_threshold": 0.8,
@@ -213,25 +213,25 @@ Usage:
 # From TUI
 /agent reviewer review semua file Python
 
-# Or configure your own in thebigbos.json
+# Or configure your own in deBigBos.json
 ```
 
 ## Directory Layout
 
 ```
-~/.config/thebigbos/              # Global user config (persists across updates)
+~/.config/deBigBos/              # Global user config (persists across updates)
 ├── config.json                   # Model, provider, API keys, soul
 ├── skills/                       # User SKILL.md files
 ├── agents/                       # Custom subagent definitions
 └── tools/                        # Custom tool JSON
 
-~/.local/share/thebigbos/         # App installation
+~/.local/share/deBigBos/         # App installation
 ├── repo/                         # Git repository (pulled from GitHub)
-│   └── thebigbos/                # Source code
+│   └── deBigBos/                # Source code
 ├── venv/                         # Python virtual environment
 ├── bin/                          # Wrapper scripts
-│   ├── thebigbos                 # Shell wrapper
-│   └── thebigbos.bat             # Windows wrapper
+│   ├── deBigBos                 # Shell wrapper
+│   └── deBigBos.bat             # Windows wrapper
 └── versions/                     # Version history for rollback
 
 <project>/.bigbos/                # Per-project data
@@ -242,8 +242,8 @@ Usage:
 ## Project Structure
 
 ```
-TheBigBos/
-├── thebigbos/                  # Main package
+deBigBos/
+├── deBigBos/                  # Main package
 │   ├── main.py                 # CLI entry point
 │   ├── config/                 # Config & auth
 │   │   ├── manager.py          # ConfigLoader (multi-source merge)
@@ -274,12 +274,12 @@ TheBigBos/
 │       ├── theme.py            # Theme management
 │       ├── plugin.py           # Plugin system
 │       └── keymap.py           # Keybinding registry
-├── .bigbos/                    # User config (auto-created)
+├── .debigbos/                    # User config (auto-created)
 │   ├── skills/
 │   ├── agents/
 │   └── tools/
 ├── install.py                  # Installer
-├── thebigbos.json              # Default config
+├── deBigBos.json              # Default config
 └── pyproject.toml
 ```
 
@@ -319,4 +319,4 @@ User Input
 
 ## License
 
-MIT — [github.com/ragungnoviandri/thebigbos](https://github.com/ragungnoviandri/thebigbos)
+MIT — [github.com/ragungnoviandri/deBigBos](https://github.com/ragungnoviandri/deBigBos)

@@ -48,7 +48,7 @@ class WelcomeScreen(Screen[Any]):
             if self._agent:
                 p = self._agent.config.active_provider
                 m = self._agent.config.active_model
-                yield Label(f"  [dim]d' BigBos...[/dim]")
+                yield Label(f"  [dim]de BigBos...[/dim]")
                 yield Label(f"  [bold #fab283]{self._agent.config.mode.upper()}[/bold #fab283]  [secondary]{p}[/secondary]/[primary]{m}[/primary]  [dim]{self._workspace}[/dim]")
                 yield Label("")
 
@@ -77,8 +77,8 @@ class WelcomeScreen(Screen[Any]):
             new_ver = u.check()
             if new_ver:
                 self.app.notify(
-                    f"Update v{new_ver} available! Run 'thebigbos update'",
-                    title="TheBigBos",
+                    f"Update v{new_ver} available! Run 'de BigBos update'",
+                    title="de BigBos",
                     timeout=10
                 )
         except Exception:

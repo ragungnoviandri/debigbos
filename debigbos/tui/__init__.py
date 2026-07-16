@@ -1,4 +1,4 @@
-"""TheBigBos TUI — OpenCode-inspired terminal UI framework powered by Textual.
+"""de BigBos TUI — OpenCode-inspired terminal UI framework powered by Textual.
 
 Architecture:
     Plugin System  → Extensible plugin API with lifecycle hooks

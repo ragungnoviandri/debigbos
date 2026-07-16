@@ -24,7 +24,7 @@ CACHE_FILE = CACHE_DIR / "models_dev_cache.json"
 _cache_data: dict[str, Any] = {}
 _cache_time: float = 0.0
 
-# TheBigBos provider names → models.dev provider IDs
+# deBigBos provider names → models.dev provider IDs
 PROVIDER_MAP: dict[str, str] = {
     "opencode-zen": "opencode",
     "opencode-go": "opencode-go",

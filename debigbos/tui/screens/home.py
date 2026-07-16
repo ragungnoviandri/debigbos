@@ -84,7 +84,7 @@ class VersionLabel(Static, can_focus=True):
             dot = "[bold blue]●[/bold blue]"
         else:
             dot = "[bold green]●[/bold green]"
-        return f" {dot} [dim]deBigBos {self.version}[/dim]"
+        return f" {dot} [dim]de BigBos {self.version}[/dim]"
 
 
 class ChatInput(TextArea):
@@ -322,7 +322,7 @@ class SidebarWidget(Static):
 
     def render(self) -> str:
         lines = []
-        lines.append(f"[bold #fab283] d' BigBos[/bold #fab283]")
+        lines.append(f"[bold #fab283] de BigBos[/bold #fab283]")
         lines.append(f" [dim]#{self.session_id or '---'}[/dim]")
         lines.append("")
         if self.error_msg:
@@ -697,7 +697,7 @@ class HomeScreen(Screen[Any]):
 
     def compose(self) -> ComposeResult:
         """Build the layout."""
-        yield Header(show_clock=True, name="TheBigBos")
+        yield Header(show_clock=True, name="de BigBos")
 
         with Horizontal():
             # Main chat area
@@ -1549,7 +1549,7 @@ class HomeScreen(Screen[Any]):
                         input_widget.value = smart_fallback
                         return
 
-                    from thebigbos.models.provider import Message, ModelOptions
+                    from debigbos.models.provider import Message, ModelOptions
                     provider = agent_ref.providers.active if agent_ref else None
                     if not provider:
                         input_widget.value = smart_fallback
@@ -2126,7 +2126,7 @@ class HomeScreen(Screen[Any]):
             lines.append(m.content)
             lines.append("")
         text = "\n".join(lines)
-        dump_dir = pathlib.Path(tempfile.gettempdir()) / "thebigbos"
+        dump_dir = pathlib.Path(tempfile.gettempdir()) / "deBigBos"
         dump_dir.mkdir(parents=True, exist_ok=True)
         dump_path = dump_dir / f"session-{sess.id[:12]}.txt"
         dump_path.write_text(text, encoding="utf-8")
@@ -2143,7 +2143,7 @@ class HomeScreen(Screen[Any]):
 | Command | Description |
 |---------|-------------|
 | `/help` | Show this help |
-| `/exit`, `/q` | Quit TheBigBos |
+| `/exit`, `/q` | Quit de BigBos |
 | `/sessions` | List all sessions |
 | `/switch <id>` | Switch to session |
 | `/clear` | Clear screen |
@@ -2328,7 +2328,7 @@ class HomeScreen(Screen[Any]):
         class ConfirmUpdate(ModalScreen[bool]):
             BINDINGS = [("y", "yes", "Yes"), ("n", "no", "No"), ("escape", "no", "No")]
             def compose(self):
-                yield ModalLabel("Update deBigBos to latest version?")
+                yield ModalLabel("Update de BigBos to latest version?")
                 yield ModalLabel("[dim]This will git pull and restart.[/dim]")
             def action_yes(self): self.dismiss(True)
             def action_no(self): self.dismiss(False)

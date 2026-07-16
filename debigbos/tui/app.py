@@ -1,4 +1,4 @@
-"""TheBigBos TUI Application — main Textual App.
+"""de BigBos TUI Application — main Textual App.
 
 Architecture (OpenCode-inspired):
   - Plugin system with lifecycle hooks
@@ -9,7 +9,7 @@ Architecture (OpenCode-inspired):
   - Dialog components (Alert, Confirm, Prompt, Select)
 
 Usage:
-    from thebigbos.tui.app import BigBosApp, run_app
+    from debigbos.tui.app import BigBosApp, run_app
     await run_app("/path/to/workspace")
 """
 
@@ -33,8 +33,8 @@ from .screens.welcome import WelcomeScreen
 
 
 class BigBosApp(App[Any]):
-    """Main TheBigBos Textual application."""
-    TITLE = "d' BigBos.ai"
+    """Main de BigBos Textual application."""
+    TITLE = "de BigBos.agent"
     
     CSS = """
     Screen {
@@ -382,7 +382,7 @@ class BigBosApp(App[Any]):
 
     def compose(self) -> ComposeResult:
         """Build the app shell."""
-        yield Header(show_clock=True, name="TheBigBos", icon="🦾")
+        yield Header(show_clock=True, name="de BigBos", icon="🦾")
         yield Footer()
 
     async def on_mount(self) -> None:
@@ -400,7 +400,7 @@ class BigBosApp(App[Any]):
     async def _load_plugins(self) -> None:
         """Load plugins from config."""
         # Look for tui.json plugins config
-        config_path = self.workspace / "thebigbos.json"
+        config_path = self.workspace / "deBigBos.json"
         if config_path.exists():
             import json
             try:
@@ -421,7 +421,7 @@ async def run_app(
     workspace: str | Path = ".",
     agent: Any = None,
 ) -> None:
-    """Run the TheBigBos TUI application.
+    """Run the de BigBos TUI application.
 
     Args:
         workspace: Path to project workspace

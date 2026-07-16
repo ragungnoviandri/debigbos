@@ -1,4 +1,4 @@
-"""Robust API & error logger for TheBigBos — writes structured logs with tracebacks.
+"""Robust API & error logger for de BigBos — writes structured logs with tracebacks.
 
 Files:
   ~/.bigbos/logs/api.log     — API request/response summary

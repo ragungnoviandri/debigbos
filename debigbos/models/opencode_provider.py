@@ -109,15 +109,15 @@ class OpencodeGoProvider(ModelProvider):
             # Classify errors for better user guidance
             if response.status_code == 401:
                 prefix = "[Auth Error]"
-                hint = " — check your API key (thebigbos configure --key opencode-go=YOUR_KEY)"
+                hint = " — check your API key (deBigBos configure --key opencode-go=YOUR_KEY)"
             elif response.status_code == 403:
                 # 403 can be auth OR model-not-available
                 if "not supported" in error_msg.lower() or "model" in error_msg.lower():
                     prefix = "[Model Error]"
-                    hint = f" — try another model or run `thebigbos models` to list available models"
+                    hint = f" — try another model or run `deBigBos models` to list available models"
                 else:
                     prefix = "[Auth Error]"
-                    hint = " — check your API key (thebigbos configure --key opencode-go=YOUR_KEY)"
+                    hint = " — check your API key (deBigBos configure --key opencode-go=YOUR_KEY)"
             elif response.status_code == 429:
                 prefix = "[Rate Limit]"
                 hint = " — too many requests, wait and retry"

@@ -10,7 +10,7 @@ from typing import Optional
 
 
 REPO_OWNER = "ragungnoviandri"
-REPO_NAME = "thebigbos"
+REPO_NAME = "deBigBos"
 CHECK_INTERVAL = 86400  # 24 hours between checks
 
 
@@ -19,13 +19,13 @@ class Updater:
 
     def __init__(self):
         self.repo_path = self._find_repo()
-        self.cache_file = Path.home() / ".config" / "thebigbos" / ".update_cache"
+        self.cache_file = Path.home() / ".config" / "deBigBos" / ".update_cache"
 
     def _find_repo(self) -> Optional[Path]:
         """Find the git repository path."""
         candidates = [
-            Path(os.environ.get("THEBIGBOS_HOME", "")) / "repo",
-            Path.home() / ".local" / "share" / "thebigbos" / "repo",
+            Path(os.environ.get("deBigBos_HOME", "")) / "repo",
+            Path.home() / ".local" / "share" / "deBigBos" / "repo",
         ]
         for c in candidates:
             if (c / ".git").exists():
@@ -47,7 +47,7 @@ class Updater:
         """Get local version from __init__.py."""
         try:
             if self.repo_path:
-                init_file = self.repo_path / "thebigbos" / "__init__.py"
+                init_file = self.repo_path / "deBigBos" / "__init__.py"
                 if init_file.exists():
                     content = init_file.read_text()
                     for line in content.split("\n"):
@@ -63,7 +63,7 @@ class Updater:
             import urllib.request
             url = f"https://api.github.com/repos/{REPO_OWNER}/{REPO_NAME}/releases/latest"
             req = urllib.request.Request(url)
-            req.add_header("User-Agent", "TheBigBos-Updater")
+            req.add_header("User-Agent", "de BigBos-Updater")
             req.add_header("Accept", "application/vnd.github.v3+json")
             with urllib.request.urlopen(req, timeout=10) as resp:
                 data = json.loads(resp.read())
@@ -152,7 +152,7 @@ class Updater:
                 if pip.exists():
                     subprocess.run([str(pip), "install", "-e", str(self.repo_path), "--quiet"], timeout=60)
                 if show_output:
-                    print("  Done! Restart thebigbos to apply deps changes.")
+                    print("  Done! Restart de BigBos to apply deps changes.")
             else:
                 if show_output:
                     print("\n  Code-only update. Already applied (editable install).")
@@ -170,7 +170,7 @@ class Updater:
         if not repo_skills.exists():
             return
 
-        config_skills = Path.home() / ".config" / "thebigbos" / "skills"
+        config_skills = Path.home() / ".config" / "deBigBos" / "skills"
         config_skills.mkdir(parents=True, exist_ok=True)
 
         new_count = 0

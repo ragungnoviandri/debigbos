@@ -1,8 +1,8 @@
 [project]
-name = "thebigbos"
+name = "deBigBos"
 version = "0.1.0"
 description = "AI-powered CLI assistant with persistent memory, soul, skills, and multi-model support"
-authors = [{ name = "TheBigBos Team" }]
+authors = [{ name = "de BigBos Team" }]
 license = { text = "MIT" }
 requires-python = ">=3.10"
 dependencies = [
@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.scripts]
-thebigbos = "thebigbos.main:main"
+deBigBos = "debigbos.main:main"
 
 [project.optional-dependencies]
 dev = [

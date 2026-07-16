@@ -1,11 +1,12 @@
-# TheBigBos Windows Installer
-# Run: powershell -c "irm https://raw.githubusercontent.com/ragungnoviandri/thebigbos/main/install.ps1 | iex"
+# deBigBos Windows Installer
+# Run: powershell -c "irm https://raw.githubusercontent.com/ragungnoviandri/deBigBos/main/install.ps1 | iex"
 
 param(
-    [string]$InstallDir = "$env:USERPROFILE\.local\share\thebigbos",
-    [string]$ConfigDir = "$env:USERPROFILE\.config\thebigbos",
+    [string]$InstallDir = "$env:USERPROFILE\.local\share\deBigBos",
+    [string]$ConfigDir = "$env:USERPROFILE\.config\deBigBos",
     [string]$PythonVersion = "3.11.9",
-    [string]$RepoUrl = "https://github.com/ragungnoviandri/thebigbos.git",
+    [string]$RepoUrl = "https://github.com/ragungnoviandri/deBigBos.git",
+    [string]$LocalRepo = "",
     [switch]$NoPath = $false,
     [switch]$SkipPython = $false
 )
@@ -14,19 +15,27 @@ $ErrorActionPreference = "Stop"
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  TheBigBos Installer" -ForegroundColor Cyan
+Write-Host "  deBigBos Installer" -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
 # 1. Check prerequisites
 Write-Host "[1/7] Checking prerequisites..." -ForegroundColor Yellow
 
-$git = Get-Command git -ErrorAction SilentlyContinue
-if (-not $git) {
-    Write-Host "  ERROR: Git not found. Install from https://git-scm.com" -ForegroundColor Red
-    exit 1
+if ($LocalRepo) {
+    if (-not (Test-Path -LiteralPath $LocalRepo)) {
+        Write-Host "  ERROR: LocalRepo not found: $LocalRepo" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  Local: $LocalRepo" -ForegroundColor Green
+} else {
+    $git = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $git) {
+        Write-Host "  ERROR: Git not found. Install from https://git-scm.com" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  Git: $($git.Source)" -ForegroundColor Green
 }
-Write-Host "  Git: $($git.Source)" -ForegroundColor Green
 
 # 2. Create directories
 Write-Host "[2/7] Creating directories..." -ForegroundColor Yellow
@@ -41,38 +50,51 @@ New-Item -ItemType Directory -Force -Path "$ConfigDir\tools" | Out-Null
 Write-Host "  Install: $InstallDir" -ForegroundColor Green
 Write-Host "  Config:  $ConfigDir" -ForegroundColor Green
 
-# 3. Clone repository
-Write-Host "[3/7] Cloning repository..." -ForegroundColor Yellow
-if (Test-Path "$InstallDir\repo\.git") {
-    Write-Host "  Repo exists, pulling latest..." -ForegroundColor Yellow
-    Push-Location "$InstallDir\repo"
-    git pull origin main 2>&1 | Out-Null
-    Pop-Location
+# 3. Get repository
+if ($LocalRepo) {
+    $repoPath = $LocalRepo
+    Write-Host "[3/7] Using local repository..." -ForegroundColor Yellow
+    Write-Host "  Path: $repoPath" -ForegroundColor Green
 } else {
-    git clone $RepoUrl "$InstallDir\repo" 2>&1
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "  ERROR: Failed to clone repository" -ForegroundColor Red
+    Write-Host "[3/7] Cloning repository..." -ForegroundColor Yellow
+    $repoPath = "$InstallDir\repo"
+    if (Test-Path "$repoPath\.git") {
+        Write-Host "  Repo exists, pulling latest..." -ForegroundColor Yellow
+        Push-Location $repoPath
+        git pull origin main 2>&1 | Out-Null
+        Pop-Location
+    } else {
+        git clone $RepoUrl $repoPath 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  ERROR: Failed to clone repository" -ForegroundColor Red
+            exit 1
+        }
+    }
+    Write-Host "  Repository ready" -ForegroundColor Green
+}
+
+# 4. Set up Python
+Write-Host "[4/7] Setting up Python..." -ForegroundColor Yellow
+if ($LocalRepo -or $SkipPython) {
+    $pythonExe = (Get-Command python -ErrorAction SilentlyContinue).Source
+    if (-not $pythonExe) {
+        Write-Host "  ERROR: Python not found on PATH" -ForegroundColor Red
         exit 1
     }
-}
-Write-Host "  Repository ready" -ForegroundColor Green
-
-# 4. Bundle Python (embeddable)
-Write-Host "[4/7] Setting up Python..." -ForegroundColor Yellow
-$pythonExe = "$InstallDir\python\python.exe"
-if (-not $SkipPython -and -not (Test-Path $pythonExe)) {
-    $pyUrl = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-embed-amd64.zip"
-    $pyZip = "$env:TEMP\python-embed.zip"
-    Write-Host "  Downloading Python $PythonVersion..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri $pyUrl -OutFile $pyZip
-    Expand-Archive -Path $pyZip -DestinationPath "$InstallDir\python" -Force
-    Remove-Item $pyZip
-    Write-Host "  Python ready" -ForegroundColor Green
-} elseif (Test-Path $pythonExe) {
-    Write-Host "  Python already bundled" -ForegroundColor Green
+    Write-Host "  System Python: $pythonExe" -ForegroundColor Green
 } else {
-    Write-Host "  Using system Python (--SkipPython)" -ForegroundColor Yellow
-    $pythonExe = "python"
+    $pythonExe = "$InstallDir\python\python.exe"
+    if (-not (Test-Path $pythonExe)) {
+        $pyUrl = "https://www.python.org/ftp/python/$PythonVersion/python-$PythonVersion-embed-amd64.zip"
+        $pyZip = "$env:TEMP\python-embed.zip"
+        Write-Host "  Downloading Python $PythonVersion..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri $pyUrl -OutFile $pyZip
+        Expand-Archive -Path $pyZip -DestinationPath "$InstallDir\python" -Force
+        Remove-Item $pyZip
+        Write-Host "  Python ready" -ForegroundColor Green
+    } else {
+        Write-Host "  Python already bundled" -ForegroundColor Green
+    }
 }
 
 # 5. Create venv + install
@@ -84,7 +106,7 @@ if (Test-Path $venvDir) {
     & $pythonExe -m venv $venvDir 2>&1 | Out-Null
 }
 $pipExe = "$venvDir\Scripts\pip.exe"
-& $pipExe install -e "$InstallDir\repo" --quiet
+& $pipExe install -e $repoPath --quiet
 Write-Host "  Dependencies installed" -ForegroundColor Green
 
 # 6. Create wrapper script
@@ -92,16 +114,16 @@ Write-Host "[6/7] Creating wrapper..." -ForegroundColor Yellow
 # Create wrapper using venv executable directly
 @"
 @echo off
-"$InstallDir\venv\Scripts\thebigbos.exe" %*
-"@ | Set-Content -Path "$InstallDir\bin\thebigbos.bat"
-Set-Content -Path "$InstallDir\bin\thebigbos.ps1" -Value "& `"$InstallDir\venv\Scripts\python.exe`" -m thebigbos @args"
+"$InstallDir\venv\Scripts\deBigBos.exe" %*
+"@ | Set-Content -Path "$InstallDir\bin\deBigBos.bat"
+Set-Content -Path "$InstallDir\bin\deBigBos.ps1" -Value "& `"$InstallDir\venv\Scripts\python.exe`" -m deBigBos @args"
 
 # Symlink to user bin
 $userBin = "$env:USERPROFILE\.local\bin"
 New-Item -ItemType Directory -Force -Path $userBin | Out-Null
-Copy-Item -Force "$InstallDir\bin\thebigbos.bat" "$userBin\thebigbos.bat"
-Copy-Item -Force "$InstallDir\bin\thebigbos.ps1" "$userBin\thebigbos.ps1"
-Write-Host "  Wrapper: $InstallDir\bin\thebigbos.bat" -ForegroundColor Green
+Copy-Item -Force "$InstallDir\bin\deBigBos.bat" "$userBin\deBigBos.bat"
+Copy-Item -Force "$InstallDir\bin\deBigBos.ps1" "$userBin\deBigBos.ps1"
+Write-Host "  Wrapper: $InstallDir\bin\deBigBos.bat" -ForegroundColor Green
 
 # 7. PATH
 if (-not $NoPath) {
@@ -121,14 +143,14 @@ if (-not $NoPath) {
 # Default config
 $configFile = "$ConfigDir\config.json"
 if (-not (Test-Path $configFile)) {
-    Copy-Item "$InstallDir\repo\thebigbos.json" $configFile
+    Copy-Item "$repoPath\deBigBos.json" $configFile
     Write-Host "  Created default config: $configFile" -ForegroundColor Green
 }
 
 # Copy bundled skills to global config
-if (Test-Path "$InstallDir\repo\.bigbos\skills") {
+if (Test-Path "$repoPath\.debigbos\skills") {
     $skillCount = 0
-    Get-ChildItem -Path "$InstallDir\repo\.bigbos\skills" -Directory | ForEach-Object {
+    Get-ChildItem -Path "$repoPath\.debigbos\skills" -Directory | ForEach-Object {
         $dest = "$ConfigDir\skills\$($_.Name)"
         if (-not (Test-Path $dest)) {
             Copy-Item -Path $_.FullName -Destination $dest -Recurse -Force
@@ -140,11 +162,11 @@ if (Test-Path "$InstallDir\repo\.bigbos\skills") {
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "  TheBigBos installed!" -ForegroundColor Green
+Write-Host "  deBigBos installed!" -ForegroundColor Green
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Restart your terminal, then run:" -ForegroundColor White
-Write-Host "    thebigbos setup" -ForegroundColor Cyan
-Write-Host "    thebigbos" -ForegroundColor Cyan
+Write-Host "    deBigBos setup" -ForegroundColor Cyan
+Write-Host "    deBigBos" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Manual path: $userBin\thebigbos.bat" -ForegroundColor DimGray
+Write-Host "  Manual path: $userBin\deBigBos.bat" -ForegroundColor DarkGray

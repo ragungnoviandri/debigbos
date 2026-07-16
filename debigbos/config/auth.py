@@ -1,4 +1,4 @@
-"""Auth manager — persistent API key storage in ~/.config/thebigbos/auth.json.
+"""Auth manager — persistent API key storage in ~/.config/deBigBos/auth.json.
 
 Priority (highest to lowest):
   1. Environment variable (temporary override)
@@ -15,7 +15,7 @@ from typing import Optional
 class AuthManager:
     """Manages API keys in a central auth.json file."""
 
-    AUTH_DIR = Path.home() / ".config" / "thebigbos"
+    AUTH_DIR = Path.home() / ".config" / "deBigBos"
     AUTH_FILE = AUTH_DIR / "auth.json"
 
     def __init__(self) -> None:

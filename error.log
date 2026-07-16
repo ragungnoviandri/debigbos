@@ -1,6 +1,6 @@
-thebigbos
+deBigBos
 ╭─────────────────────────────────────────────────────────────────────────────────────────── Traceback (most recent call last) ────────────────────────────────────────────────────────────────────────────────────────────╮
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widgets\_text_area.py:1713 in action_undo                                                                                                           │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widgets\_text_area.py:1713 in action_undo                                                                                                           │
 │                                                                                                                                                                                                                          │
 │   1710 │                                                                                        ╭───────────────────────── locals ──────────────────────────╮                                                            │
 │   1711 │   def action_undo(self) -> None:                                                       │ self = ChatInput(id='prompt-input', classes='chat-input') │                                                            │
@@ -10,7 +10,7 @@ thebigbos
 │   1715 │   def redo(self) -> None:                                                                                                                                                                                       │
 │   1716 │   │   """Redo the most recently undone batch of edits."""                                                                                                                                                       │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widgets\_text_area.py:1709 in undo                                                                                                                  │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widgets\_text_area.py:1709 in undo                                                                                                                  │
 │                                                                                                                                                                                                                          │
 │   1706 │   def undo(self) -> None:                                                              ╭───────────────────────────────────────────────────── locals ─────────────────────────────────────────────────────╮     │
 │   1707 │   │   """Undo the edits since the last checkpoint (the most recent batch of edits).""" │ edits = [                                                                                                        │     │
@@ -27,7 +27,7 @@ thebigbos
 │                                                                                                 │  self = ChatInput(id='prompt-input', classes='chat-input')                                                       │     │
 │                                                                                                 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯     │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widgets\_text_area.py:1762 in _undo_batch                                                                                                           │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widgets\_text_area.py:1762 in _undo_batch                                                                                                           │
 │                                                                                                                                                                                                                          │
 │   1759 │   │   │   │   minimum_top, maximum_old_bottom, maximum_new_bottom                                                                                                                                               │
 │   1760 │   │   │   )                                                                                                                                                                                                     │
@@ -67,7 +67,7 @@ thebigbos
 │ │               self = ChatInput(id='prompt-input', classes='chat-input')                                                       │                                                                                        │
 │ ╰───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯                                                                                        │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widgets\_text_area.py:1295 in _refresh_size                                                                                                         │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widgets\_text_area.py:1295 in _refresh_size                                                                                                         │
 │                                                                                                                                                                                                                          │
 │   1292 │   │   │   # +1 width to make space for the cursor resting at the end of the line       ╭───────────────────────── locals ──────────────────────────╮                                                            │
 │   1293 │   │   │   width, height = self.document.get_size(self.indent_width)                    │ self = ChatInput(id='prompt-input', classes='chat-input') │                                                            │
@@ -77,7 +77,7 @@ thebigbos
 │   1297 │   @property                                                                                                                                                                                                     │
 │   1298 │   def _draw_cursor(self) -> bool:                                                                                                                                                                               │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widget.py:2132 in _refresh_scrollbars                                                                                                               │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widget.py:2132 in _refresh_scrollbars                                                                                                               │
 │                                                                                                                                                                                                                          │
 │   2129 │   │   │   self._scrollbar_changes.clear()                                              ╭───────────────────────────────────────────────── locals ─────────────────────────────────────────────────╮             │
 │   2130 │   │                                                                                    │ _show_horizontal = False                                                                                 │             │
@@ -135,7 +135,7 @@ thebigbos
 │                                                                                                 │            width = 186                                                                                   │             │
 │                                                                                                 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────╯             │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widgets\_text_area.py:995 in _watch_show_vertical_scrollbar                                                                                         │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widgets\_text_area.py:995 in _watch_show_vertical_scrollbar                                                                                         │
 │                                                                                                                                                                                                                          │
 │    992 │   def _watch_show_vertical_scrollbar(self) -> None:                                    ╭───────────────────────── locals ──────────────────────────╮                                                            │
 │    993 │   │   if self.wrap_width:                                                              │ self = ChatInput(id='prompt-input', classes='chat-input') │                                                            │
@@ -145,7 +145,7 @@ thebigbos
 │    997 │   def _watch_theme(self, theme: str) -> None:                                                                                                                                                                   │
 │    998 │   │   """We set the styles on this widget when the theme changes, to ensure that                                                                                                                                │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widgets\_text_area.py:2040 in scroll_cursor_visible                                                                                                 │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widgets\_text_area.py:2040 in scroll_cursor_visible                                                                                                 │
 │                                                                                                                                                                                                                          │
 │   2037 │   │   """                                                                              ╭─────────────────────────── locals ───────────────────────────╮                                                         │
 │   2038 │   │   if not self._has_cursor:                                                         │ animate = False                                              │                                                         │
@@ -155,7 +155,7 @@ thebigbos
 │   2042 │   │   x, y = self._cursor_offset                                                                                                                                                                                │
 │   2043 │   │   scroll_offset = self.scroll_to_region(                                                                                                                                                                    │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\widgets\_text_area.py:912 in _recompute_cursor_offset                                                                                               │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\widgets\_text_area.py:912 in _recompute_cursor_offset                                                                                               │
 │                                                                                                                                                                                                                          │
 │    909 │                                                                                        ╭───────────────────────── locals ──────────────────────────╮                                                            │
 │    910 │   def _recompute_cursor_offset(self):                                                  │ self = ChatInput(id='prompt-input', classes='chat-input') │                                                            │
@@ -165,7 +165,7 @@ thebigbos
 │    914 │   │   )                                                                                                                                                                                                         │
 │    915                                                                                                                                                                                                                   │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\document\_wrapped_document.py:343 in location_to_offset                                                                                             │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\document\_wrapped_document.py:343 in location_to_offset                                                                                             │
 │                                                                                                                                                                                                                          │
 │   340 │   │   line_index = clamp(line_index, 0, len(self._line_index_to_offsets))              ╭───────────────────────────────────────────── locals ─────────────────────────────────────────────╮                      │
 │   341 │   │                                                                                    │ column_index = 36                                                                                │                      │
@@ -175,7 +175,7 @@ thebigbos
 │   345 │   │   section_index = bisect_right(wrap_offsets, column_index)                         ╰──────────────────────────────────────────────────────────────────────────────────────────────────╯                      │
 │   346                                                                                                                                                                                                                    │
 │                                                                                                                                                                                                                          │
-│ C:\Users\ragun\.local\share\thebigbos\venv\Lib\site-packages\textual\document\_wrapped_document.py:439 in get_offsets                                                                                                    │
+│ C:\Users\ragun\.local\share\deBigBos\venv\Lib\site-packages\textual\document\_wrapped_document.py:439 in get_offsets                                                                                                    │
 │                                                                                                                                                                                                                          │
 │   436 │   │   wrap_offsets = self._wrap_offsets                                                ╭───────────────────────────────────────────── locals ──────────────────────────────────────────────╮                     │
 │   437 │   │   out_of_bounds = line_index < 0 or line_index >= len(wrap_offsets)                │    line_index = 1                                                                                 │                     │

@@ -15,7 +15,7 @@ class WebFetchTool:
                 import httpx
                 async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
                     response = await client.get(url, headers={
-                        "User-Agent": "TheBigBos/1.0",
+                        "User-Agent": "deBigBos/1.0",
                     })
                     response.raise_for_status()
                     text = response.text[:50000]

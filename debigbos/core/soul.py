@@ -1,4 +1,4 @@
-"""Soul/Personality system — gives TheBigBos its character.
+"""Soul/Personality system — gives de BigBos its character.
 
 The soul defines:
   - Persona: The character/personality
@@ -16,7 +16,7 @@ from ..config.manager import SoulConfig
 
 @dataclass
 class Soul:
-    """The personality engine of TheBigBos."""
+    """The personality engine of de BigBos."""
 
     config: SoulConfig
 
@@ -97,7 +97,7 @@ Only ask clarifying questions when genuinely uncertain — otherwise act.
         """Return a rich welcome banner for new sessions / startup — OpenCode-style."""
         lines = [
             f"",
-            f"[bold #fab283]  d' BigBos[/bold #fab283]  [dim]AI Assistant with Soul[/dim]",
+            f"[bold #fab283]  de BigBos[/bold #fab283]  [dim]AI Assistant with Soul[/dim]",
             f"",
         ]
 

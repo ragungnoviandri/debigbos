@@ -1,12 +1,12 @@
-"""TheBigBos — AI-powered CLI assistant with soul, memory, skills, and multi-model support.
+"""de BigBos — AI-powered CLI assistant with soul, memory, skills, and multi-model support.
 
 Usage:
-    thebigbos                    # Interactive TUI mode
-    thebigbos run "query"        # Headless single-query mode
-    thebigbos -w /path/to/proj   # Use specific workspace
-    thebigbos --model gpt-4o      # Use specific model
-    thebigbos --server            # Start HTTP API server (future)
-    thebigbos init                # Initialize .bigbos/ config
+    deBigBos                    # Interactive TUI mode
+    deBigBos run "query"        # Headless single-query mode
+    deBigBos -w /path/to/proj   # Use specific workspace
+    deBigBos --model gpt-4o      # Use specific model
+    deBigBos --server            # Start HTTP API server (future)
+    deBigBos init                # Initialize .bigbos/ config
 """
 
 import argparse
@@ -19,7 +19,7 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     """Parse CLI arguments."""
     parser = argparse.ArgumentParser(
-        prog="thebigbos",
+        prog="deBigBos",
         description="AI-powered CLI assistant with persistent memory, soul, and multi-model support",
     )
     parser.add_argument("-w", "--workspace", type=str, default=".",
@@ -71,7 +71,7 @@ def parse_args() -> argparse.Namespace:
     setup_parser.add_argument("-w", "--workspace", type=str, default=".",
                               help="Workspace directory (default: current)")
     setup_parser.add_argument("--global", action="store_true", dest="global_config",
-                              help="Apply to global config (~/.config/thebigbos/)")
+                              help="Apply to global config (~/.config/deBigBos/)")
 
     # Import
     import_parser = subparsers.add_parser("import", help="Import sessions from Hermes or OpenCode")
@@ -107,7 +107,7 @@ def parse_args() -> argparse.Namespace:
     config_parser.add_argument("--list", action="store_true", dest="list_config",
                                help="Show current configuration")
     config_parser.add_argument("--global", action="store_true", dest="global_config",
-                               help="Apply to global config (~/.config/thebigbos/)")
+                               help="Apply to global config (~/.config/deBigBos/)")
     config_parser.add_argument("--soul-name", type=str, default="",
                                help="Set soul/agent name")
     config_parser.add_argument("--soul-tone", type=str, default="",
@@ -122,7 +122,7 @@ def parse_args() -> argparse.Namespace:
     update_parser.add_argument("--check", action="store_true", help="Check only, don't install")
 
     # Uninstall
-    uninstall_parser = subparsers.add_parser("uninstall", help="Remove TheBigBos")
+    uninstall_parser = subparsers.add_parser("uninstall", help="Remove de BigBos")
     uninstall_parser.add_argument("--keep-config", action="store_true", default=True, help="Keep config files")
     uninstall_parser.add_argument("--yes", action="store_true", help="Skip confirmation")
 
@@ -132,7 +132,7 @@ def parse_args() -> argparse.Namespace:
 async def run_headless(workspace: Path, query: str, model: str = "",
                        provider: str = "", auto: bool = False) -> None:
     """Run a single query without TUI."""
-    from thebigbos.core.agent import BigBosAgent
+    from debigbos.core.agent import BigBosAgent
 
     agent = BigBosAgent(workspace)
     await agent.initialize()
@@ -143,7 +143,7 @@ async def run_headless(workspace: Path, query: str, model: str = "",
         agent.config.active_provider = provider
     agent.config.auto_approve = auto
 
-    print(f"TheBigBos ({agent.config.active_provider}/{agent.config.active_model})")
+    print(f"de BigBos ({agent.config.active_provider}/{agent.config.active_model})")
     print(f"Workspace: {workspace}")
     print()
 
@@ -164,14 +164,14 @@ async def run_init(workspace: Path) -> None:
     bigbos_dir.mkdir(parents=True, exist_ok=True)
 
     # Create default config
-    config_path = workspace / "thebigbos.json"
+    config_path = workspace / "deBigBos.json"
     if not config_path.exists():
         import json
         default_config = {
             "active_provider": "openai",
             "active_model": "gpt-4o",
             "soul": {
-                "name": "TheBigBos",
+                "name": "de BigBos",
                 "persona": "A sharp, witty AI assistant that's direct and concise. You help users build software.",
                 "tone": "casual and direct",
                 "greeting": "Hey! Ready to ship something awesome?",
@@ -212,26 +212,26 @@ Return findings as a numbered list with severity (🔴 critical, 🟡 warning, �
     tools_dir = bigbos_dir / "tools"
     tools_dir.mkdir(parents=True, exist_ok=True)
 
-    print(f"\n[OK] TheBigBos initialized at {workspace}")
+    print(f"\n[OK] de BigBos initialized at {workspace}")
     print(f"   Config: {config_path}")
     print(f"   Skills: {skills_dir.parent}")
     print(f"   Agents: {agents_dir}")
     print(f"   Tools:  {tools_dir}")
-    print(f"\n   Run 'thebigbos' to start!")
+    print(f"\n   Run 'deBigBos' to start!")
 
 
 async def run_install(workspace: Path) -> None:
-    """Install global config to ~/.config/thebigbos/."""
+    """Install global config to ~/.config/deBigBos/."""
     import shutil
 
-    config_dir = Path.home() / ".config" / "thebigbos"
+    config_dir = Path.home() / ".config" / "deBigBos"
     config_dir.mkdir(parents=True, exist_ok=True)
     config_file = config_dir / "config.json"
 
     # Copy default config if none exists
-    source_config = workspace / "thebigbos.json"
+    source_config = workspace / "deBigBos.json"
     if not source_config.exists():
-        print("Error: thebigbos.json not found in current directory")
+        print("Error: deBigBos.json not found in current directory")
         return
 
     if config_file.exists():
@@ -243,8 +243,8 @@ async def run_install(workspace: Path) -> None:
 
     print()
     print("Priority (highest to lowest):")
-    print("  1. Project: .bigbos/config.json")
-    print("  2. Project: thebigbos.json")
+    print("  1. Project: .debigbos/config.json")
+    print("  2. Project: deBigBos.json")
     print(f"  3. Global:  {config_file}")
     print()
     print("Set your API keys as environment variables:")
@@ -321,14 +321,14 @@ PROVIDER_CATALOG = {
 async def run_setup(args: argparse.Namespace) -> None:
     """Interactive setup - pick provider, model, enter API key with a nice menu."""
     import json
-    from thebigbos.config.auth import get_auth_manager
+    from debigbos.config.auth import get_auth_manager
 
     auth = get_auth_manager()
     workspace = Path(args.workspace).resolve()
     if getattr(args, "global_config", False):
-        config_path = Path.home() / ".config" / "thebigbos" / "config.json"
+        config_path = Path.home() / ".config" / "deBigBos" / "config.json"
     else:
-        config_path = workspace / "thebigbos.json"
+        config_path = workspace / "deBigBos.json"
 
     if config_path.exists():
         config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -478,18 +478,18 @@ async def run_setup(args: argparse.Namespace) -> None:
                 if provider not in config["providers"]:
                     config["providers"][provider] = {}
                 config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
-                print(f"Saved to ~/.config/thebigbos/auth.json")
+                print(f"Saved to ~/.config/deBigBos/auth.json")
         elif is_env_set:
             print(f"API key found in ${info['env_var']} (env var)")
             save_to_auth = input("Also save to auth.json for persistence? (y/n) [y]: ").strip().lower()
             if save_to_auth != "n":
                 auth.set_key(provider, env_val, info["base_url"])
-                print(f"Saved to ~/.config/thebigbos/auth.json")
+                print(f"Saved to ~/.config/deBigBos/auth.json")
         elif has_auth_key:
-            print(f"API key found in ~/.config/thebigbos/auth.json")
+            print(f"API key found in ~/.config/deBigBos/auth.json")
         else:
             print(f"No API key found for {provider}.")
-            print(f"  Stored in: ~/.config/thebigbos/auth.json")
+            print(f"  Stored in: ~/.config/deBigBos/auth.json")
             print(f"  Or set env var (temporary): set {info['env_var']}=<your-key>")
             print()
             key_input = input(f"Enter API key for {provider} (press Enter to skip): ").strip()
@@ -502,7 +502,7 @@ async def run_setup(args: argparse.Namespace) -> None:
                 if provider not in config["providers"]:
                     config["providers"][provider] = {}
                 config["providers"][provider]["api_key"] = f"${{{info['env_var']}}}"
-                print(f"Saved to ~/.config/thebigbos/auth.json")
+                print(f"Saved to ~/.config/deBigBos/auth.json")
     else:
         # Ollama - no key needed
         pass
@@ -540,11 +540,11 @@ async def run_setup(args: argparse.Namespace) -> None:
         if not resolved:
             print()
             print("[!] API key still needed!")
-            print(f"    Run again: thebigbos setup")
-            print(f"    Or: thebigbos configure --key {provider}=<your-key>")
+            print(f"    Run again: deBigBos setup")
+            print(f"    Or: deBigBos configure --key {provider}=<your-key>")
 
     print()
-    print("Now run: thebigbos")
+    print("Now run: deBigBos")
 
 
 async def run_configure(args: argparse.Namespace) -> None:
@@ -554,9 +554,9 @@ async def run_configure(args: argparse.Namespace) -> None:
     workspace = Path(args.workspace).resolve()
 
     if getattr(args, "global_config", False):
-        config_path = Path.home() / ".config" / "thebigbos" / "config.json"
+        config_path = Path.home() / ".config" / "deBigBos" / "config.json"
     else:
-        config_path = workspace / "thebigbos.json"
+        config_path = workspace / "deBigBos.json"
 
     if config_path.exists():
         config = json.loads(config_path.read_text(encoding="utf-8"))
@@ -639,7 +639,7 @@ async def run_configure(args: argparse.Namespace) -> None:
             provider = provider.strip()
             key_val = key_val.strip()
             # Save to auth.json for persistence
-            from thebigbos.config.auth import get_auth_manager
+            from debigbos.config.auth import get_auth_manager
             auth = get_auth_manager()
             auth.set_key(provider, key_val)
             # Also update config reference
@@ -648,7 +648,7 @@ async def run_configure(args: argparse.Namespace) -> None:
             if provider not in config["providers"]:
                 config["providers"][provider] = {}
             config["providers"][provider]["api_key"] = f"${{{PROVIDER_CATALOG.get(provider, {}).get('env_var', '')}}}"
-            print(f"API key saved to ~/.config/thebigbos/auth.json for {provider}")
+            print(f"API key saved to ~/.config/deBigBos/auth.json for {provider}")
             changed = True
 
     if args.soul_name:
@@ -680,7 +680,7 @@ async def run_configure(args: argparse.Namespace) -> None:
                 print(f"\n[!] Set your API key:")
                 print(f"    set {env_var}=<your-key>")
                 print(f"  OR")
-                print(f"    thebigbos configure --key {provider}=<your-key>")
+                print(f"    deBigBos configure --key {provider}=<your-key>")
 
     elif not getattr(args, "list_config", False):
         print("No changes. Use --list to view config.")
@@ -690,7 +690,7 @@ async def run_configure(args: argparse.Namespace) -> None:
 
 
 async def run_import(args: argparse.Namespace) -> None:
-    """Import sessions and messages from Hermes or OpenCode into TheBigBos memory."""
+    """Import sessions and messages from Hermes or OpenCode into de BigBos memory."""
     import json
     import sqlite3
     import time
@@ -905,7 +905,7 @@ async def run_import(args: argparse.Namespace) -> None:
 
     print(f"\nDone! Imported {imported_sessions} sessions, {imported_messages} messages.")
     print(f"Saved to: {db_path}")
-    print(f"\nNow run 'thebigbos' - imported sessions available via /sessions")
+    print(f"\nNow run 'deBigBos' - imported sessions available via /sessions")
 
 
 async def run_sessions(args: argparse.Namespace) -> None:
@@ -917,7 +917,7 @@ async def run_sessions(args: argparse.Namespace) -> None:
     db_path = workspace / ".bigbos" / "memory.db"
 
     if not db_path.exists():
-        print("No sessions found. Run 'thebigbos' first.")
+        print("No sessions found. Run 'deBigBos' first.")
         return
 
     conn = sqlite3.connect(str(db_path))
@@ -937,11 +937,11 @@ async def run_sessions(args: argparse.Namespace) -> None:
                 source = (row[2] or "")[:10]
                 dt = datetime.fromtimestamp(row[4]).strftime("%Y-%m-%d %H:%M") if row[4] else ""
                 print(f"{sid:<12} {title:<45} {source:<12} {dt}")
-            print(f"\nUse: thebigbos sessions rename <id> <new_title>")
+            print(f"\nUse: deBigBos sessions rename <id> <new_title>")
 
     elif args.action == "rename":
         if len(args.id_or_title) < 2:
-            print("Usage: thebigbos sessions rename <session_id> <new_title>")
+            print("Usage: deBigBos sessions rename <session_id> <new_title>")
             conn.close()
             return
         sid = args.id_or_title[0]
@@ -967,7 +967,7 @@ async def run_sessions(args: argparse.Namespace) -> None:
                 for m in matched[:5]:
                     print(f"  {m[0]}")
             else:
-                print(f"Session '{sid}' not found. Use 'thebigbos sessions list' to see IDs.")
+                print(f"Session '{sid}' not found. Use 'deBigBos sessions list' to see IDs.")
         conn.commit()
 
     elif args.action == "fix":
@@ -986,17 +986,17 @@ async def run_sessions(args: argparse.Namespace) -> None:
         conn.commit()
         if conn.total_changes > 0:
             print(f"Removed {conn.total_changes} duplicate entries.")
-        print("Run 'thebigbos sessions list' to see remaining sessions.")
+        print("Run 'deBigBos sessions list' to see remaining sessions.")
 
     conn.close()
 
 
 async def run_update(args: argparse.Namespace) -> None:
     """Check for and install updates."""
-    from thebigbos.core.updater import Updater
-    from thebigbos import __version__ as local_ver
+    from debigbos.core.updater import Updater
+    from debigbos import __version__ as local_ver
     u = Updater()
-    print(f"  TheBigBos v{local_ver}")
+    print(f"  deBigBos v{local_ver}")
     print(f"  Git: {u.get_current_git_ref()}")
 
     if not u.repo_path:
@@ -1031,29 +1031,29 @@ async def run_update(args: argparse.Namespace) -> None:
         # Show what changed
         import subprocess
         subprocess.run(["git", "-C", str(u.repo_path), "diff", "--stat", "HEAD~1..HEAD"])
-        print("\n  Done! Restart thebigbos to apply.")
+        print("\n  Done! Restart de BigBos to apply.")
     else:
         print("  Already up to date or update failed.")
 
 
 async def run_uninstall(args: argparse.Namespace) -> None:
-    """Remove TheBigBos installation."""
+    """Remove de BigBos installation."""
     if not getattr(args, "yes", False):
-        print("  Remove TheBigBos from your system?")
-        print("  Config (~/.config/thebigbos/) + .bigbos/ folders kept.")
+        print("  Remove de BigBos from your system?")
+        print("  Config (~/.config/deBigBos/) + .debigbos/ folders kept.")
         if input("  Continue? [y/N]: ").strip().lower() != "y":
             print("  Cancelled.")
             return
 
     import shutil
-    tb_home = os.environ.get("THEBIGBOS_HOME") or str(Path.home() / ".local" / "share" / "thebigbos")
+    tb_home = os.environ.get("deBigBos_HOME") or str(Path.home() / ".local" / "share" / "deBigBos")
     bin_dir = str(Path.home() / ".local" / "bin")
     removed = []
 
     if os.path.exists(tb_home):
         shutil.rmtree(tb_home, ignore_errors=True)
         removed.append(tb_home)
-    for s in ["thebigbos", "thebigbos.bat", "thebigbos.ps1"]:
+    for s in ["deBigBos", "deBigBos.bat", "deBigBos.ps1"]:
         p = os.path.join(bin_dir, s)
         if os.path.exists(p):
             os.remove(p)
@@ -1106,11 +1106,11 @@ async def main_async() -> None:
         return
 
     if args.command == "version":
-        from thebigbos.core.updater import Updater
-        from thebigbos import get_version_string, get_build_number
+        from debigbos.core.updater import Updater
+        from debigbos import get_version_string, get_build_number
         u = Updater()
-        print(f"  TheBigBos {get_version_string()}")
-        print(f"  Repo: https://github.com/ragungnoviandri/thebigbos")
+        print(f"  deBigBos {get_version_string()}")
+        print(f"  Repo: https://github.com/ragungnoviandri/deBigBos")
         print(f"  Build: {get_build_number()} commits")
         print(f"  Git: {u.get_current_git_ref()}")
         print(f"  Repo path: {u.repo_path or 'Not found'}")
@@ -1131,7 +1131,7 @@ async def main_async() -> None:
         return
 
     # Default: TUI mode (chat or no subcommand)
-    from thebigbos.tui.app import BigBosTUI
+    from debigbos.tui.app import BigBosTUI
     tui = BigBosTUI(workspace)
 
     if getattr(args, "model", ""):

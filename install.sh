@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# TheBigBos Cross-Platform Installer
-# Run: curl -fsSL https://raw.githubusercontent.com/ragungnoviandri/thebigbos/main/install.sh | bash
+# deBigBos Cross-Platform Installer
+# Run: curl -fsSL https://raw.githubusercontent.com/ragungnoviandri/deBigBos/main/install.sh | bash
 
 set -e
 
-INSTALL_DIR="${THEBIGBOS_HOME:-$HOME/.local/share/thebigbos}"
-CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/thebigbos"
-REPO_URL="https://github.com/ragungnoviandri/thebigbos.git"
+INSTALL_DIR="${deBigBos_HOME:-$HOME/.local/share/deBigBos}"
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/deBigBos"
+REPO_URL="https://github.com/ragungnoviandri/deBigBos.git"
 PYTHON_VERSION="3.11"
 BIN_DIR="$HOME/.local/bin"
 
 echo ""
 echo "============================================"
-echo "  TheBigBos Installer"
+echo "  deBigBos Installer"
 echo "============================================"
 echo ""
 
@@ -81,19 +81,19 @@ echo "  Dependencies installed"
 
 # 5. Create wrapper script
 echo "[5/6] Creating wrapper..."
-cat > "$INSTALL_DIR/bin/thebigbos" << 'WRAPPER'
+cat > "$INSTALL_DIR/bin/deBigBos" << 'WRAPPER'
 #!/usr/bin/env bash
-TB_HOME="${THEBIGBOS_HOME:-$HOME/.local/share/thebigbos}"
-exec "$TB_HOME/venv/bin/python" -m thebigbos "$@"
+TB_HOME="${deBigBos_HOME:-$HOME/.local/share/deBigBos}"
+exec "$TB_HOME/venv/bin/python" -m deBigBos "$@"
 WRAPPER
-chmod +x "$INSTALL_DIR/bin/thebigbos"
-ln -sf "$INSTALL_DIR/bin/thebigbos" "$BIN_DIR/thebigbos"
-echo "  Wrapper: $BIN_DIR/thebigbos"
+chmod +x "$INSTALL_DIR/bin/deBigBos"
+ln -sf "$INSTALL_DIR/bin/deBigBos" "$BIN_DIR/deBigBos"
+echo "  Wrapper: $BIN_DIR/deBigBos"
 
 # 6. Default config + skills
 echo "[6/6] Setting up config and skills..."
 if [ ! -f "$CONFIG_DIR/config.json" ]; then
-    cp "$INSTALL_DIR/repo/thebigbos.json" "$CONFIG_DIR/config.json"
+    cp "$INSTALL_DIR/repo/deBigBos.json" "$CONFIG_DIR/config.json"
     echo "  Created default config: $CONFIG_DIR/config.json"
 else
     echo "  Config already exists"
@@ -121,9 +121,9 @@ fi
 
 echo ""
 echo "============================================"
-echo "  TheBigBos installed!"
+echo "  deBigBos installed!"
 echo "============================================"
 echo ""
-echo "  Run: thebigbos setup"
-echo "       thebigbos"
+echo "  Run: deBigBos setup"
+echo "       deBigBos"
 echo ""

@@ -36,8 +36,8 @@ class SkillManager:
             workspace / ".bigbos" / "skills",          # Per-project skills
         ]
 
-        # Global skills (~/.config/thebigbos/skills)
-        global_skills = Path.home() / ".config" / "thebigbos" / "skills"
+        # Global skills (~/.config/deBigBos/skills)
+        global_skills = Path.home() / ".config" / "deBigBos" / "skills"
         if global_skills.exists():
             self.search_paths.append(global_skills)
 
@@ -137,7 +137,7 @@ class SkillManager:
         ]
 
     def create_skill(self, name: str, description: str, content: str,
-                     author: str = "TheBigBos", tags: list[str] | None = None) -> Skill | None:
+                     author: str = "de BigBos", tags: list[str] | None = None) -> Skill | None:
         """Create a new skill and persist it as SKILL.md. Returns the Skill or None on failure."""
         import time
 

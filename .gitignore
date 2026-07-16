@@ -10,9 +10,9 @@ build/
 venv/
 .venv/
 
-# TheBigBos runtime
+# deBigBos runtime
 .bigbos/memory.db
-thebigbos/logs/
+deBigBos/logs/
 *.log
 
 # IDE

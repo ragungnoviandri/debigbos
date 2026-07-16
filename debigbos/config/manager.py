@@ -1,4 +1,4 @@
-"""Configuration manager for TheBigBos — merged from global, project, and env."""
+"""Configuration manager for de BigBos — merged from global, project, and env."""
 
 import json
 import os
@@ -21,7 +21,7 @@ class ProviderConfig(BaseModel):
 
 class SoulConfig(BaseModel):
     """Personality / soul configuration."""
-    name: str = "TheBigBos"
+    name: str = "de BigBos"
     persona: str = "A sharp, witty AI assistant that's direct and concise."
     tone: str = "professional but casual"
     greeting: str = "Hey! Ready to ship something awesome?"
@@ -166,8 +166,8 @@ class ConfigManager:
     def load(self) -> Config:
         """Load and merge config from all sources."""
         paths = [
-            Path.home() / ".config" / "thebigbos" / "config.json",
-            self.workspace / "thebigbos.json",
+            Path.home() / ".config" / "deBigBos" / "config.json",
+            self.workspace / "deBigBos.json",
             self.workspace / ".bigbos" / "config.json",
         ]
         merged = self.config.model_dump()
@@ -242,6 +242,6 @@ class ConfigManager:
 
     def save(self, path: Path | None = None) -> None:
         """Save current config to file."""
-        target = path or (self.workspace / "thebigbos.json")
+        target = path or (self.workspace / "deBigBos.json")
         data = self.config.model_dump(exclude_none=True)
         target.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")

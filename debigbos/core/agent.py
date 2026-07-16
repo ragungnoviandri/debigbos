@@ -248,7 +248,7 @@ class BigBosAgent:
         return session
 
     def continue_session(self, session_id: str) -> Session | None:
-        """Continue a session — load from TheBigBos DB or external source on demand.
+        """Continue a session — load from de BigBos DB or external source on demand.
 
         Resume mode (from memory.resume_mode config):
           - "clean": user + assistant messages only, tool outputs skipped
@@ -265,7 +265,7 @@ class BigBosAgent:
         # Register session with correct ID (no more mismatched dict keys!)
         session = self.sessions.register_session(session_id)
 
-        # Try loading from TheBigBos DB first
+        # Try loading from de BigBos DB first
         msgs = self.memory.load_messages(session_id, limit=10000)
         if msgs:
             load_limit = self.config.memory.session_load_limit
@@ -515,7 +515,7 @@ class BigBosAgent:
         # Get provider and tool schemas
         provider = self.providers.active
         if not provider:
-            return "Error: No active provider configured. Set active_provider in thebigbos.json."
+            return "Error: No active provider configured. Set active_provider in deBigBos.json."
 
         tool_schemas = self.tools.get_schemas()
         options = ModelOptions(
@@ -1042,7 +1042,7 @@ Markdown skill file with YAML frontmatter.
 name: {topic}
 description: "Brief one-line summary"
 version: 1.0.0
-author: TheBigBos
+author: de BigBos
 license: MIT
 metadata:
   tags: [tag1, tag2]
@@ -1102,7 +1102,7 @@ Return ONLY the skill content, no extra commentary."""
                 if tag_match:
                     tag_list = [t.strip().strip('"').strip("'") for t in tag_match.group(1).split(",")]
 
-            skill = self.skills.create_skill(name, description, raw, author="TheBigBos", tags=tag_list)
+            skill = self.skills.create_skill(name, description, raw, author="de BigBos", tags=tag_list)
             if skill:
                 self._emit("skill_learned", json.dumps({"name": skill.name, "description": skill.description}))
                 return f"[green]Skill '{skill.name}' saved![/green]\n  📁 {skill.path}\n  📝 {skill.description}"
