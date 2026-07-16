@@ -29,6 +29,7 @@ from typing import Any
 
 
 from textual import on
+from textual import events
 from textual.app import ComposeResult
 from textual.css.query import NoMatches
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -495,6 +496,14 @@ class SettingsDialog(ModalScreen[None]):
     #settings-actions Button {
         margin-left: 1;               /* Memberi jarak antar tombol */
     }
+
+    .provider-row {
+        cursor: pointer;
+        padding: 0 1;
+    }
+    .provider-row:hover {
+        background: $boost;
+    }
     """
 
     BINDINGS = [("escape", "close", "Close"), ("q", "close", "Close")]
@@ -518,9 +527,9 @@ class SettingsDialog(ModalScreen[None]):
                     yield ModalLabel("[bold]Current Model[/bold]")
                     agent = self._home.agent
                     if agent:
-                        yield ModalLabel(f"  {agent.config.active_provider} / {agent.config.active_model}")
+                        yield ModalLabel(f"  {agent.config.active_provider} / {agent.config.active_model}", id="current-model-label")
                     else:
-                        yield ModalLabel("  [dim]No agent loaded[/dim]")
+                        yield ModalLabel("  [dim]No agent loaded[/dim]", id="current-model-label")
                     yield ModalLabel("")
                     yield ModalLabel("[bold]Providers[/bold]")
                     # Provider rows — inline in compose
@@ -531,8 +540,8 @@ class SettingsDialog(ModalScreen[None]):
                             models = cfg.models if isinstance(cfg.models, list) else []
                             model_options = [(m, m) for m in models] if models else [("none", "")]
                             active_model = cfg.default_model or (models[0] if models else "")
-                            with Horizontal(classes="provider-row"):
-                                yield ModalLabel(f"  {marker} [bold]{name}[/bold]")
+                            with Horizontal(id=f"provider-row-{name}", classes="provider-row"):
+                                yield ModalLabel(f"  {marker} [bold]{name}[/bold]", id=f"plabel-{name}")
                                 yield Select(model_options, prompt="Model", id=f"model-{name}", value=active_model)
                                 yield ModalButton("✎", variant="default", id=f"edit-provider-btn-{name}", classes="icon-btn")
                     else:
@@ -557,6 +566,43 @@ class SettingsDialog(ModalScreen[None]):
     def on_mount(self) -> None:
         """Populate skill toggles."""
         self._populate_skill_toggles()
+
+    @on(events.Click, ".provider-row")
+    def _on_provider_row_click(self, event: events.Click) -> None:
+        """Click provider row → switch active provider."""
+        # Find the provider row (closest with id starting with provider-row-)
+        target = event.widget
+        while target and target.parent:
+            if target.id and target.id.startswith("provider-row-"):
+                name = target.id.replace("provider-row-", "")
+                self._switch_provider(name)
+                return
+            target = target.parent
+
+    def _switch_provider(self, name: str) -> None:
+        """Switch active provider and update UI markers."""
+        agent = self._home.agent
+        if not agent or name not in agent.config.providers:
+            return
+        cfg = agent.config.providers[name]
+        agent.config.active_provider = name
+        agent.config.active_model = cfg.default_model or (cfg.models[0] if cfg.models else "")
+
+        # Update "Current Model" label
+        try:
+            current_label = self.query_one("#current-model-label", Label)
+            current_label.update(f"  {name} / {agent.config.active_model}")
+        except NoMatches:
+            pass
+
+        # Update all provider row markers
+        for row_name in agent.config.providers:
+            try:
+                label = self.query_one(f"#plabel-{row_name}", Label)
+                marker = "[green]●[/green]" if row_name == name else "○"
+                label.update(f"  {marker} [bold]{row_name}[/bold]")
+            except NoMatches:
+                pass
 
     @on(Button.Pressed, "#add-provider-btn")
     async def _on_add_provider_dialog(self) -> None:
