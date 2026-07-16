@@ -273,7 +273,9 @@ class StatusBar(Static):
         if self.context_tokens > 0:
             limit = self.context_limit or 128000
             pct = min(100, int(self.context_tokens / limit * 100))
-            right_parts.append(f"[dim]ctx {self.context_tokens:,} ({pct}%)[/dim]")
+            pct_color = "[red]" if pct > 80 else "[yellow]" if pct > 50 else ""
+            pct_end = "[/red]" if pct > 80 else "[/yellow]" if pct > 50 else ""
+            right_parts.append(f"[dim]ctx {self.context_tokens:,}/{limit:,} {pct_color}({pct}%){pct_end}[/dim]")
 
         if self.total_cost > 0:
             right_parts.append(f"[green]${self.total_cost:.2f} spent[/green]")
@@ -349,7 +351,7 @@ class SidebarWidget(Static):
             pct_end = "[/red]" if pct > 80 else "[/yellow]" if pct > 50 else ""
             bar = self._make_bar(pct)
             lines.append(" Context")
-            lines.append(f"  {limit:,} tokens")
+            lines.append(f"  [dim]{self.context_tokens:,}[/dim]/[bold]{limit:,}[/bold] tokens")
             lines.append(f"  {pct_color}{bar} {pct}% used{pct_end}")
             if self.total_cost > 0:
                 lines.append(f"  ${self.total_cost:,.2f} spent")
