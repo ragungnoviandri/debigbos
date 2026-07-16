@@ -2702,13 +2702,27 @@ class HomeScreen(Screen[Any]):
 
         updater = Updater()
         repo_path = updater.repo_path or ""
+        home_screen = self
+
+        # Diagnostic file log (kept across crashes)
+        import os as _os
+        log_file = Path.home() / ".config" / "deBigBos" / "update.log"
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_file, "a", encoding="utf-8") as lf:
+            lf.write(f"\n--- update started {__import__('time').time()} ---\n")
+            lf.write(f"repo_path={repo_path}\n")
+            lf.write(f"sys.argv={__import__('sys').argv}\n")
+            lf.write(f"sys.executable={__import__('sys').executable}\n")
+
+        def _file_log(msg: str) -> None:
+            try:
+                with open(log_file, "a", encoding="utf-8") as lf:
+                    lf.write(msg + "\n")
+            except Exception:
+                pass
 
         class UpdatingDialog(ModalScreen[None]):
             BINDINGS = [("escape", "close", "Close")]
-
-            def __init__(self, log_widget):
-                super().__init__()
-                self.log_widget = log_widget
 
             def compose(self) -> ComposeResult:
                 with Vertical(id="version-dialog", classes="modal-container"):
@@ -2716,7 +2730,7 @@ class HomeScreen(Screen[Any]):
                     yield ModalLabel("")
                     yield ModalLabel("[bold yellow]⬇ Updating de BigBos...[/bold yellow]")
                     yield ModalLabel("[dim]Pulling latest from GitHub:[/dim]")
-                    yield self.log_widget
+                    yield DialogLog(id="update-log", max_lines=200, min_height=10)
                     with Horizontal():
                         yield ModalButton("Close", variant="default", id="close-btn")
 
@@ -2726,92 +2740,112 @@ class HomeScreen(Screen[Any]):
             def action_close(self) -> None:
                 self.dismiss(None)
 
-        # Build log widget
-        log = DialogLog(id="update-log", max_lines=200, min_height=10)
-        log.can_focus = False
+            async def on_mount(self) -> None:
+                """Dialog mounted — start update in background worker."""
+                log = self.query_one("#update-log", DialogLog)
+                log.can_focus = False
+                self.run_worker(self._run_update(log))
 
-        dialog = UpdatingDialog(log)
-        await self.app.push_screen(dialog, wait_for_dismiss=False)
-
-        import sys, os, asyncio
-
-        async def run_update_with_output() -> bool:
-            try:
-                if not repo_path:
-                    log.write("[red]No repo path found![/red]")
-                    return False
-
-                log.write("[dim]Fetching origin...[/dim]")
-                proc = await asyncio.create_subprocess_exec(
-                    "git", "-C", repo_path, "fetch", "origin",
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-                )
-                stdout, _ = await proc.communicate()
-                if stdout:
-                    for line in stdout.decode(errors="replace").splitlines()[:10]:
-                        log.write(f"[dim]{line}[/dim]")
-
-                if proc.returncode != 0:
-                    log.write("[red]Fetch failed! Check network.[/red]")
-                    return False
-
-                log.write("")
-                log.write("[bold]Incoming changes:[/bold]")
-                proc2 = await asyncio.create_subprocess_exec(
-                    "git", "-C", repo_path, "log", "HEAD..origin/main", "--oneline",
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-                )
-                stdout2, _ = await proc2.communicate()
-                if stdout2 and stdout2.strip():
-                    for line in stdout2.decode(errors="replace").splitlines():
-                        log.write(f"  [yellow]{line}[/yellow]")
-                else:
-                    log.write("  [dim](no new commits)[/dim]")
-                    log.write("")
-                    log.write("[green]Already up to date — no restart needed.[/green]")
-                    return False
-
-                log.write("")
-                log.write("[bold]Pulling...[/bold]")
-                proc3 = await asyncio.create_subprocess_exec(
-                    "git", "-C", repo_path, "pull", "origin", "main",
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
-                )
-                stdout3, _ = await proc3.communicate()
-                pull_output = stdout3.decode(errors="replace") if stdout3 else ""
-                for line in pull_output.splitlines():
-                    log.write(f"  {line}")
-
-                if proc3.returncode != 0:
-                    log.write("[red]Pull failed![/red]")
-                    return False
-
-                # Sync skills
-                log.write("")
-                log.write("[dim]Syncing skills...[/dim]")
+            async def _run_update(self, log: DialogLog) -> None:
                 try:
-                    updater._sync_skills(show_output=False)
-                    log.write("[green]Skills synced.[/green]")
-                except Exception:
-                    log.write("[dim]Skills already up to date.[/dim]")
+                    if not repo_path:
+                        log.write("[red]No repo path found![/red]")
+                        _file_log("ERROR: no repo_path")
+                        return
 
-                log.write("")
-                log.write("[bold green]✅ Update complete![/bold green]")
-                log.write("[bold yellow]⚠ Restarting in 3 seconds...[/bold yellow]")
-                return True
+                    log.write("[dim]Fetching origin...[/dim]")
+                    _file_log("fetch origin")
+                    proc = await asyncio.create_subprocess_exec(
+                        "git", "-C", repo_path, "fetch", "origin",
+                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+                    )
+                    stdout, _ = await proc.communicate()
+                    if stdout:
+                        for line in stdout.decode(errors="replace").splitlines()[:10]:
+                            log.write(f"[dim]{line}[/dim]")
+                            _file_log(f"fetch: {line}")
 
-            except Exception as e:
-                log.write(f"[red]Error: {e}[/red]")
-                import traceback
-                for line in traceback.format_exc().splitlines()[-5:]:
-                    log.write(f"[dim red]{line}[/dim red]")
-                return False
+                    if proc.returncode != 0:
+                        log.write("[red]Fetch failed! Check network.[/red]")
+                        _file_log(f"ERROR fetch returncode={proc.returncode}")
+                        return
 
-        success = await run_update_with_output()
+                    log.write("")
+                    log.write("[bold]Incoming changes:[/bold]")
+                    proc2 = await asyncio.create_subprocess_exec(
+                        "git", "-C", repo_path, "log", "HEAD..origin/main", "--oneline",
+                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+                    )
+                    stdout2, _ = await proc2.communicate()
+                    if stdout2 and stdout2.strip():
+                        for line in stdout2.decode(errors="replace").splitlines():
+                            log.write(f"  [yellow]{line}[/yellow]")
+                            _file_log(f"incoming: {line}")
+                    else:
+                        log.write("  [dim](no new commits)[/dim]")
+                        log.write("")
+                        log.write("[green]Already up to date — no restart needed.[/green]")
+                        _file_log("already up to date")
+                        return
 
-        if success:
-            await asyncio.sleep(3.0)
-            os.execv(sys.executable, [sys.executable, "-m", "debigbos"] + sys.argv[1:])
+                    log.write("")
+                    log.write("[bold]Pulling...[/bold]")
+                    _file_log("pull origin main")
+                    proc3 = await asyncio.create_subprocess_exec(
+                        "git", "-C", repo_path, "pull", "origin", "main",
+                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT
+                    )
+                    stdout3, _ = await proc3.communicate()
+                    pull_output = stdout3.decode(errors="replace") if stdout3 else ""
+                    for line in pull_output.splitlines():
+                        log.write(f"  {line}")
+                        _file_log(f"pull: {line}")
+
+                    if proc3.returncode != 0:
+                        log.write("[red]Pull failed![/red]")
+                        _file_log(f"ERROR pull returncode={proc3.returncode}")
+                        return
+
+                    # Sync skills
+                    log.write("")
+                    log.write("[dim]Syncing skills...[/dim]")
+                    _file_log("sync skills")
+                    try:
+                        updater._sync_skills(show_output=False)
+                        log.write("[green]Skills synced.[/green]")
+                        _file_log("skills synced")
+                    except Exception:
+                        log.write("[dim]Skills already up to date.[/dim]")
+                        _file_log("skills sync skipped")
+
+                    log.write("")
+                    log.write("[bold green]✅ Update complete![/bold green]")
+                    log.write("[bold yellow]⚠ Restarting in 3 seconds...[/bold yellow]")
+                    _file_log("update complete, restarting in 3s")
+
+                    await asyncio.sleep(3.0)
+
+                    # Safer restart: use deBigBos launcher if available
+                    import sys, shutil
+                    launcher = shutil.which("deBigBos")
+                    args = sys.argv[1:]
+                    if launcher:
+                        _file_log(f"restart via launcher: {launcher} {args}")
+                        _os.execv(launcher, [launcher] + args)
+                    else:
+                        _file_log(f"restart via python -m debigbos {args}")
+                        _os.execv(sys.executable, [sys.executable, "-m", "debigbos"] + args)
+
+                except Exception as e:
+                    import traceback
+                    err = f"Error: {e}"
+                    log.write(f"[red]{err}[/red]")
+                    _file_log(err)
+                    for line in traceback.format_exc().splitlines()[-5:]:
+                        log.write(f"[dim red]{line}[/dim red]")
+                        _file_log(line)
+
+        await self.app.push_screen(UpdatingDialog())
 
     # ── Clickable session actions (from welcome page) ──────────
 
