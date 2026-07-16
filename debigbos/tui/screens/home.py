@@ -352,7 +352,9 @@ class SidebarWidget(Static):
             lines.append(" [dim]No active session[/dim]")
             lines.append("")
 
-        lines.append(f" [bold]{self.mode.upper()}[/bold]")
+        # Mode: BUILD (blue), PLAN (orange)
+        color = "#5c9cf5" if self.mode == "build" else "#fab283"
+        lines.append(f" [bold {color}]{self.mode.upper()}[/bold {color}]")
         lines.append("")
 
         limit = self.context_limit or 128000

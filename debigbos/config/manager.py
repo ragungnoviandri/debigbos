@@ -75,8 +75,8 @@ class AgentConfig(BaseModel):
 
 class Config(BaseModel):
     """Root configuration."""
-    active_provider: str = "openai"
-    active_model: str = "gpt-4o"
+    active_provider: str = "opencode-go"
+    active_model: str = "deepseek-v4-pro"
     providers: dict[str, ProviderConfig] = Field(default_factory=dict)
     soul: SoulConfig = Field(default_factory=SoulConfig)
     skills: SkillConfig = Field(default_factory=SkillConfig)
