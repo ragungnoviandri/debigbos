@@ -599,10 +599,11 @@ class SettingsDialog(ModalScreen[None]):
                 if desc:
                     label_text += f"\n     [dim italic]{desc[:60]}[/dim italic]"
 
+                # Mount row first, then children
                 row = Horizontal(classes="skill-row")
+                skill_list.mount(row)
                 row.mount(ModalLabel(label_text))
                 row.mount(switch)
-                skill_list.mount(row)
 
     @on(Select.Changed, "#settings-provider-select")
     def _on_provider_changed(self, event: Select.Changed) -> None:

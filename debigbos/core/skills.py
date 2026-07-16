@@ -159,13 +159,14 @@ class SkillManager:
         return list(all_skills.values())
 
     def _extract_category(self, skill: Skill) -> str:
-        """Extract category from skill name prefix or first tag."""
-        # Try tags first
-        tags = skill.metadata.get("hermes", {}).get("tags", []) if isinstance(skill.metadata, dict) else []
-        if isinstance(tags, list) and len(tags) > 0:
-            cat = str(tags[0])
-            if cat:
-                return cat.title()
+        """Extract category from skill tags or name prefix."""
+        # Try tags from flat metadata (e.g., "tags: git, github")
+        if isinstance(skill.metadata, dict):
+            tags_val = skill.metadata.get("tags", "")
+            if tags_val:
+                first_tag = str(tags_val).split(",")[0].strip()
+                if first_tag:
+                    return first_tag.title()
         
         # Fallback: name prefix mapping
         name = skill.name
