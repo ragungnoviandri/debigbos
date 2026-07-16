@@ -2398,11 +2398,11 @@ class HomeScreen(Screen[Any]):
         asyncio.create_task(self._show_update_dialog(event))
 
     async def _show_update_dialog(self, event: UpdateAvailable) -> None:
-        """Show version/update dialog with fresh check (runs in worker for push_screen_wait)."""
+        """Show version/update dialog with fresh check + update flow (runs in worker)."""
         from textual.containers import Vertical, Horizontal
         from textual.widgets import Label as ModalLabel, Button as ModalButton
 
-        # Phase 1: Show checking dialog
+        # Phase 1: Show checking dialog (use push_screen_wait so it's properly mounted)
         class CheckingDialog(ModalScreen[bool]):
             BINDINGS = [("escape", "close", "Close")]
             def compose(self) -> ComposeResult:
@@ -2414,22 +2414,19 @@ class HomeScreen(Screen[Any]):
             def action_close(self) -> None:
                 self.dismiss(False)
 
+        # Show checking dialog, wait for it to fully mount
         checking = CheckingDialog()
-        # Show checking dialog non-blocking
-        self.app.push_screen(checking)
+        await self.app.push_screen(checking, wait_for_dismiss=False)
 
-        # Run fresh check
+        # Run fresh check in background while dialog shows
         from ...core.updater import Updater
         updater = Updater()
         new_version = await asyncio.to_thread(updater.check, force=True)
 
         # Dismiss checking dialog
-        try:
-            self.app.pop_screen()
-        except Exception:
-            pass
+        checking.dismiss(False)
 
-        # Phase 2: Show result dialog
+        # Phase 2: Show result dialog with update details
         is_update = bool(new_version)
 
         class ResultDialog(ModalScreen[bool]):
@@ -2480,29 +2477,39 @@ class HomeScreen(Screen[Any]):
             await self._do_update()
 
     async def _do_update(self) -> None:
-        """Pull latest code and restart the app."""
-        status = self.query_one("#status-bar", StatusBar)
-        status_bar = status
-        status_bar.api_info = "Updating..."
-        self._update_sidebar()
+        """Pull latest code and restart with progress feedback."""
+        from textual.containers import Vertical
+        from textual.widgets import Label as ModalLabel
 
+        class UpdatingDialog(ModalScreen[None]):
+            def compose(self) -> ComposeResult:
+                with Vertical(id="version-dialog", classes="modal-container"):
+                    yield ModalLabel(" de BigBos Update ", id="dialog-title")
+                    yield ModalLabel("")
+                    yield ModalLabel("[bold yellow]⬇ Updating de BigBos...[/bold yellow]")
+                    yield ModalLabel("[dim]Pulling latest code & restarting...[/dim]")
+
+        # Show updating dialog, wait for mount
+        updating = UpdatingDialog()
+        await self.app.push_screen(updating, wait_for_dismiss=False)
+
+        import sys, os
         try:
             from ...core.updater import Updater
             updater = Updater()
             success = await asyncio.to_thread(updater.update, show_output=False)
             if success:
-                self.notify("Updated! Restarting...", severity="success")
-                await asyncio.sleep(1.5)
-                # Restart by replacing the current process
-                import sys, os
+                updating.dismiss(None)
+                self.notify("✅ Updated! Restarting...", severity="success", timeout=3)
+                await asyncio.sleep(1.0)
                 os.execv(sys.executable, [sys.executable] + sys.argv)
             else:
-                self.notify("Already up to date", severity="information")
+                # Update failed — dismiss dialog and show error
+                updating.dismiss(None)
+                self.notify("Update failed — check network or git status", severity="error")
         except Exception as e:
+            updating.dismiss(None)
             self.notify(f"Update failed: {e}", severity="error")
-        finally:
-            status_bar.api_info = ""
-            self._update_sidebar()
 
     # ── Clickable session actions (from welcome page) ──────────
 
