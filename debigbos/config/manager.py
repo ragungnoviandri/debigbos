@@ -36,6 +36,15 @@ class SkillConfig(BaseModel):
     auto_load: list[str] = Field(default_factory=list)
 
 
+class CompactionConfig(BaseModel):
+    """Context compaction settings (OpenCode-compatible)."""
+    auto: bool = True           # Auto-compact when context is full
+    threshold: float = 0.8      # Trigger at X% of model context window
+    keep: int = 10              # Keep last N non-system messages
+    prune: bool = False         # Remove old tool outputs to save tokens
+    reserved: int = 10000       # Token buffer to avoid overflow during compaction
+
+
 class MemoryConfig(BaseModel):
     """Memory persistence settings."""
     enabled: bool = True
@@ -50,6 +59,7 @@ class MemoryConfig(BaseModel):
     session_keep_days: int = 0          # Auto-clean sessions older than N days (0=keep all)
     resume_mode: str = "full"          # "full" | "clean" (user+assistant only)
     save_reasoning: bool = True         # Persist thinking/reasoning to DB
+    compaction: CompactionConfig = Field(default_factory=CompactionConfig)
 
 
 class AgentConfig(BaseModel):

@@ -790,6 +790,10 @@ class BigBosAgent:
 
     def _should_compact(self) -> bool:
         """Check if context needs compaction based on actual model context window."""
+        cc = self.config.memory.compaction
+        if not cc.auto:
+            return False
+
         session = self.sessions.active
         if not session:
             return False
@@ -799,16 +803,19 @@ class BigBosAgent:
 
         token_count = provider.count_tokens(session.to_llm_format())
         context_window = provider.get_context_window(self.config.active_model)
-        threshold = int(context_window * self.config.memory.compaction_threshold)
+        threshold = int((context_window - cc.reserved) * cc.threshold)
 
-        # Also trigger if messages exceed max_short_term
+        if token_count > threshold:
+            return True
+
         if len(session.messages) > self.config.memory.max_short_term:
             return True
 
-        return token_count > threshold
+        return False
 
     async def _compact_context(self) -> None:
         """Compact the conversation context: keep system prompt + last N, summarize rest."""
+        cc = self.config.memory.compaction
         session = self.sessions.active
         if not session or len(session.messages) < 10:
             return
@@ -817,11 +824,15 @@ class BigBosAgent:
         if not provider:
             return
 
+        # Optional: prune old tool outputs before compacting
+        if cc.prune:
+            self._prune_tools(session)
+
         # Preserve system message(s) at the top
         system_msgs = [m for m in session.messages if m.role == "system"]
         non_system = [m for m in session.messages if m.role != "system"]
 
-        keep = min(10, len(non_system) - 4)  # keep last 4-10 non-system messages
+        keep = max(4, min(cc.keep, len(non_system) - 4))
         to_summarize = non_system[:-keep]
         recent = non_system[-keep:]
 
@@ -869,6 +880,45 @@ class BigBosAgent:
             self._emit("compacted", f"Compacted {len(to_summarize)} → {len(response.content.split())} words")
         except Exception as e:
             self._emit("compacted", f"Compaction failed: {e}")
+
+    def _prune_tools(self, session: Session) -> None:
+        """Remove old tool output messages to save tokens.
+
+        Keeps tool results from the most recent assistant turn,
+        removes older ones (replaced with a placeholder).
+        """
+        if len(session.messages) < 20:
+            return
+
+        messages: list[Message] = session.messages
+        # Find the last assistant message with tool calls
+        last_toolcall_idx: int | None = None
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].role == "assistant" and messages[i].tool_calls:
+                last_toolcall_idx = i
+                break
+
+        if last_toolcall_idx is None:
+            return
+
+        pruned = 0
+        result: list[Message] = []
+        for i, m in enumerate(messages):
+            if m.role == "tool" and i < last_toolcall_idx:
+                tool_name = getattr(m, 'name', '') or 'tool'
+                result.append(Message(
+                    role="tool",
+                    content=f"[pruned: old output from {tool_name}]",
+                    tool_call_id=m.tool_call_id,
+                    name=tool_name,
+                ))
+                pruned += 1
+            else:
+                result.append(m)
+
+        if pruned > 0:
+            session.messages = result
+            self._emit("compacted", f"Pruned {pruned} old tool outputs")
 
     async def _auto_summarize(self, session: Session) -> None:
         """Auto-generate medium-term summary for the session."""

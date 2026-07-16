@@ -1984,8 +1984,14 @@ class HomeScreen(Screen[Any]):
             response_area.write(f"  [cyan]auto_load_session:[/cyan] {'✅ on' if mem.auto_load_session else '❌ off'}\n")
             response_area.write(f"  [cyan]session_keep_days:[/cyan] {mem.session_keep_days} (0=keep all)\n")
             response_area.write(f"  [cyan]save_reasoning:[/cyan] {'✅ on' if mem.save_reasoning else '❌ off'}\n")
-            response_area.write(f"  [cyan]compaction_threshold:[/cyan] {mem.compaction_threshold:.0%}\n")
             response_area.write(f"  [cyan]max_short_term:[/cyan] {mem.max_short_term} messages\n")
+            cc = mem.compaction
+            response_area.write("[bold]  compaction:[/bold]\n")
+            response_area.write(f"    [cyan]auto:[/cyan] {'✅ on' if cc.auto else '❌ off'}\n")
+            response_area.write(f"    [cyan]threshold:[/cyan] {cc.threshold:.0%}\n")
+            response_area.write(f"    [cyan]keep:[/cyan] {cc.keep} messages\n")
+            response_area.write(f"    [cyan]prune:[/cyan] {'✅ on' if cc.prune else '❌ off'}\n")
+            response_area.write(f"    [cyan]reserved:[/cyan] {cc.reserved:,} tokens\n")
             response_area.write("\n[dim]Usage: /config memory <key> <value>[/dim]\n")
             return
 
@@ -2034,6 +2040,56 @@ class HomeScreen(Screen[Any]):
                 response_area.write("[yellow]Usage: /config memory reasoning on|off[/yellow]\n")
                 return
             response_area.write(f"[green]save_reasoning = {mem.save_reasoning}[/green]\n")
+
+        elif key == "compaction":
+            sub_parts = val.split(maxsplit=1) if val else []
+            sub_key = sub_parts[0].lower() if sub_parts else ""
+            sub_val = sub_parts[1].strip().lower() if len(sub_parts) > 1 else ""
+            cc = mem.compaction
+
+            if sub_key in ("auto",):
+                if sub_val in ("on", "true", "1", "yes"):
+                    cc.auto = True
+                elif sub_val in ("off", "false", "0", "no"):
+                    cc.auto = False
+                else:
+                    response_area.write("[yellow]Usage: /config memory compaction auto on|off[/yellow]\n")
+                    return
+                response_area.write(f"[green]compaction.auto = {cc.auto}[/green]\n")
+
+            elif sub_key in ("threshold",):
+                try:
+                    cc.threshold = float(sub_val)
+                    response_area.write(f"[green]compaction.threshold = {cc.threshold:.0%}[/green]\n")
+                except ValueError:
+                    response_area.write("[yellow]Usage: /config memory compaction threshold <0.0-1.0>[/yellow]\n")
+
+            elif sub_key in ("keep",):
+                try:
+                    cc.keep = int(sub_val)
+                    response_area.write(f"[green]compaction.keep = {cc.keep} messages[/green]\n")
+                except ValueError:
+                    response_area.write("[yellow]Usage: /config memory compaction keep <number>[/yellow]\n")
+
+            elif sub_key in ("prune",):
+                if sub_val in ("on", "true", "1", "yes"):
+                    cc.prune = True
+                elif sub_val in ("off", "false", "0", "no"):
+                    cc.prune = False
+                else:
+                    response_area.write("[yellow]Usage: /config memory compaction prune on|off[/yellow]\n")
+                    return
+                response_area.write(f"[green]compaction.prune = {cc.prune}[/green]\n")
+
+            elif sub_key in ("reserved",):
+                try:
+                    cc.reserved = int(sub_val)
+                    response_area.write(f"[green]compaction.reserved = {cc.reserved:,} tokens[/green]\n")
+                except ValueError:
+                    response_area.write("[yellow]Usage: /config memory compaction reserved <tokens>[/yellow]\n")
+
+            else:
+                response_area.write("[yellow]Usage: /config memory compaction <auto|threshold|keep|prune|reserved> <value>[/yellow]\n")
 
         else:
             response_area.write(f"[yellow]Unknown key: {key}[/yellow]\n")
