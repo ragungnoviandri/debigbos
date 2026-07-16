@@ -483,14 +483,14 @@ class SettingsDialog(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         from textual.containers import Vertical, Horizontal, VerticalScroll
-        from textual.widgets import Label as ModalLabel, Button as ModalButton
+        from textual.widgets import Label as ModalLabel, Button as ModalButton, Input
         from textual.widgets import TabbedContent, TabPane, Switch
 
         with Vertical(id="settings-dialog", classes="modal-container"):
             yield ModalLabel(" ⚙ Settings ", id="dialog-title")
             with TabbedContent(id="settings-tabs"):
-                # Tab 1: Info
-                with TabPane("🤖 Info", id="tab-general"):
+                # Tab 1: AI Provider
+                with TabPane("🤖 AI Provider", id="tab-provider"):
                     yield ModalLabel("")
                     yield ModalLabel("[bold]Current Model[/bold]")
                     agent = self._home.agent
@@ -498,6 +498,13 @@ class SettingsDialog(ModalScreen[None]):
                         yield ModalLabel(f"  {agent.config.active_provider} / {agent.config.active_model}")
                     else:
                         yield ModalLabel("  [dim]No agent loaded[/dim]")
+                    yield ModalLabel("")
+                    # Provider management
+                    yield ModalLabel("[bold]Providers[/bold]")
+                    yield VerticalScroll(id="provider-list")
+                    yield ModalLabel("")
+                    with Horizontal():
+                        yield ModalButton("+ Add Provider", variant="success", id="add-provider-btn")
 
                 # Tab 2: Skills
                 with TabPane("🛠 Skills", id="tab-skills"):
@@ -513,9 +520,64 @@ class SettingsDialog(ModalScreen[None]):
                 yield ModalButton("Cancel", variant="default", id="settings-cancel-btn")
 
     def on_mount(self) -> None:
-        """Populate skill list."""
-        # Skill toggles
+        """Populate provider list and skill toggles."""
+        self._populate_provider_list()
         self._populate_skill_toggles()
+
+    def _populate_provider_list(self) -> None:
+        """Populate provider list in AI Provider tab."""
+        from textual.containers import Horizontal
+        from textual.widgets import Label as ModalLabel, Button as ModalButton, Select
+        try:
+            container = self.query_one("#provider-list", VerticalScroll)
+        except NoMatches:
+            return
+        agent = self._home.agent
+        if not agent:
+            container.mount(ModalLabel("  [dim]No agent loaded[/dim]"))
+            return
+
+        providers = agent.config.providers
+        if not providers:
+            container.mount(ModalLabel("  [dim]No providers configured[/dim]"))
+            return
+
+        for name, cfg in providers.items():
+            is_active = name == agent.config.active_provider
+            marker = "[green]●[/green]" if is_active else "○"
+            with Horizontal(classes="provider-row"):
+                row = Horizontal()
+                row.mount(ModalLabel(f"  {marker} [bold]{name}[/bold]"))
+                # Model select for this provider
+                models = cfg.models if isinstance(cfg.models, list) else []
+                model_options = [(m, m) for m in models] if models else [("none", "")]
+                active_model = cfg.default_model or (models[0] if models else "")
+                model_select = Select(model_options, prompt="Model", id=f"model-{name}", value=active_model)
+                row.mount(model_select)
+                row.mount(ModalButton("✎", variant="default", id=f"edit-provider-btn-{name}", classes="icon-btn"))
+                container.mount(row)
+
+    @on(Button.Pressed, "#add-provider-btn")
+    async def _on_add_provider_dialog(self) -> None:
+        """Open the Add Provider dialog."""
+        agent = self._home.agent
+        if not agent:
+            return
+        existing = list(agent.config.providers.keys())
+        dialog = AddProviderDialog(existing)
+        result = await self.app.push_screen_wait(dialog)
+        if result:
+            # Refresh provider list
+            self._clear_provider_list()
+            self._populate_provider_list()
+
+    def _clear_provider_list(self) -> None:
+        """Clear the provider list container."""
+        try:
+            container = self.query_one("#provider-list", VerticalScroll)
+            container.remove_children()
+        except NoMatches:
+            pass
 
     def _populate_skill_toggles(self) -> None:
         """Add switch toggles for every skill — grouped by category."""
@@ -580,6 +642,73 @@ class SettingsDialog(ModalScreen[None]):
             self.dismiss(None)
         elif event.button.id == "settings-cancel-btn":
             self.dismiss(None)
+        elif event.button.id and event.button.id.startswith("edit-provider-btn-"):
+            provider_name = event.button.id.replace("edit-provider-btn-", "")
+            self._edit_provider(provider_name)
+
+    @on(Select.Changed, "Select[id^='model-']")
+    def _on_provider_model_changed(self, event: Select.Changed) -> None:
+        """Handle model change in provider list."""
+        if not event.value or event.value is Select.NULL or event.value is Select.BLANK:
+            return
+        agent = self._home.agent
+        if not agent or not event.control.id:
+            return
+        provider_name = event.control.id.replace("model-", "")
+        cfg = agent.config.providers.get(provider_name)
+        if cfg:
+            cfg.default_model = str(event.value)
+        if provider_name == agent.config.active_provider:
+            agent.config.active_model = str(event.value)
+
+    def _edit_provider(self, name: str) -> None:
+        """Open dialog to edit provider endpoint & API key."""
+        agent = self._home.agent
+        if not agent:
+            return
+        cfg = agent.config.providers.get(name)
+        if not cfg:
+            return
+        asyncio.create_task(self._show_edit_provider(name, cfg))
+
+    async def _show_edit_provider(self, name: str, cfg: 'ProviderConfig') -> None:
+        """Show edit dialog for a provider."""
+        from textual.containers import Vertical, Horizontal
+        from textual.widgets import Label as ModalLabel, Button as ModalButton, Input
+        from textual.screen import ModalScreen
+
+        class EditProviderDialog(ModalScreen[dict | None]):
+            def compose(self2):
+                with Vertical(id="edit-provider-dialog", classes="modal-container"):
+                    yield ModalLabel(f" ✏ Edit Provider: {name} ", id="dialog-title")
+                    yield ModalLabel("")
+                    yield ModalLabel("[bold]Endpoint URL[/bold]")
+                    yield Input(value=cfg.base_url or "", id="edit-endpoint")
+                    yield ModalLabel("")
+                    yield ModalLabel("[bold]API Key[/bold]")
+                    yield Input(value=cfg.api_key or "", password=True, id="edit-apikey")
+                    yield ModalLabel("")
+                    with Horizontal():
+                        yield ModalButton("💾 Save", variant="primary", id="edit-save-btn")
+                        yield ModalButton("Cancel", variant="default", id="edit-cancel-btn")
+
+            def on_button_pressed(self2, event: Button.Pressed):
+                if event.button.id == "edit-save-btn":
+                    endpoint = self2.query_one("#edit-endpoint", Input).value
+                    apikey = self2.query_one("#edit-apikey", Input).value
+                    self2.dismiss({"endpoint": endpoint, "apikey": apikey})
+                elif event.button.id == "edit-cancel-btn":
+                    self2.dismiss(None)
+
+        dialog = EditProviderDialog()
+        result = await self.app.push_screen_wait(dialog)
+        if result:
+            cfg.base_url = result["endpoint"]
+            cfg.api_key = result["apikey"]
+            # Clear and repopulate
+            self._clear_provider_list()
+            self._populate_provider_list()
+            self._home.notify(f"✅ Provider '{name}' updated!")
 
     def _save_settings(self) -> None:
         """Write settings back to config."""
@@ -876,14 +1005,7 @@ class HomeScreen(Screen[Any]):
                     yield Select([], id="session-select", prompt="Select session...")
                     yield Button("🗑", variant="error", id="delete-session-btn", classes="icon-btn")
 
-                # Provider & Model selectors
-                yield Label("[bold #5c9cf5]Provider[/bold #5c9cf5]", id="sidebar-provider-label")
-                with Horizontal(id="provider-controls"):
-                    yield Select([], id="provider-select", prompt="Provider...")
-                    yield Button("+", variant="success", id="add-provider-sidebar-btn", classes="icon-btn")
-                yield Label("[bold #5c9cf5]Model[/bold #5c9cf5]", id="sidebar-model-label")
-                yield Select([], id="model-select", prompt="Model...")
-
+                # Session
                 yield SidebarWidget(id="sidebar-info")
 
                 # Keyboard shortcuts reference
@@ -981,140 +1103,6 @@ class HomeScreen(Screen[Any]):
             self.notify("Failed to load session", severity="error")
             self._populate_session_select()  # Reset selection
 
-    # ——— Provider & Model selectors ———
-
-    def _populate_provider_select(self) -> None:
-        """Populate provider dropdown with available providers."""
-        if not self.agent:
-            return
-        select = self.query_one("#provider-select", Select)
-        providers = self.agent.providers.list_providers()
-        options = [(name, name) for name in providers]
-        if not options:
-            options = [("No providers", "")]
-        select.set_options(options)
-        # Set to active provider
-        active = self.agent.config.active_provider
-        if active in providers:
-            select.value = active
-
-    def _populate_model_select(self, provider_name: str | None = None) -> None:
-        """Populate model dropdown with models for the given provider."""
-        if not self.agent:
-            return
-        select = self.query_one("#model-select", Select)
-        provider_name = provider_name or self.agent.config.active_provider
-        models = self.agent.providers.list_models(provider_name)
-        if not models:
-            # If provider config not found, try default config
-            cfg = self.agent.config.providers.get(provider_name)
-            if cfg and cfg.models:
-                models = cfg.models
-        options = [(m, m) for m in models]
-        if not options:
-            options = [("No models", "")]
-        select.set_options(options)
-        # Set to active model
-        active = self.agent.config.active_model
-        if active in models:
-            select.value = active
-        elif options:
-            select.value = options[0][1]
-
-    @on(Select.Changed, "#provider-select")
-    async def _on_provider_select_changed(self, event: Select.Changed) -> None:
-        """Handle provider selection — switch provider and repopulate models."""
-        if not event.value or not self.agent or event.value is Select.NULL or event.value is Select.BLANK:
-            return
-        old_provider = self.agent.config.active_provider
-        new_provider = event.value
-        if new_provider == old_provider:
-            return
-
-        # Switch provider
-        self.agent.config.active_provider = new_provider
-
-        # Try to fetch live models from provider API
-        provider = self.agent.providers.get(new_provider)
-        cfg = self.agent.config.providers.get(new_provider)
-        if provider and cfg:
-            try:
-                live = await provider.fetch_models()
-                if live:
-                    cfg.models = live
-                    if cfg.default_model not in live:
-                        cfg.default_model = live[0]
-                    self.notify(f"Fetched {len(live)} models from {new_provider}")
-            except Exception:
-                pass  # Fall through to cached models
-
-        models = self.agent.providers.list_models(new_provider)
-        if not models:
-            if cfg and cfg.models:
-                models = cfg.models
-        if models:
-            self.agent.config.active_model = models[0]
-
-        # Repopulate model dropdown
-        self._populate_model_select(new_provider)
-        self._update_sidebar()
-        self.notify(f"Provider: {new_provider} | Model: {self.agent.config.active_model}")
-
-    @on(Select.Changed, "#model-select")
-    def _on_model_select_changed(self, event: Select.Changed) -> None:
-        """Handle model selection — switch active model."""
-        if not event.value or not self.agent or event.value is Select.NULL or event.value is Select.BLANK:
-            return
-        old_model = self.agent.config.active_model
-        new_model = event.value
-        if new_model == old_model:
-            return
-
-        self.agent.config.active_model = new_model
-        self._update_sidebar()
-        self.notify(f"Model: {new_model}")
-
-    @on(Button.Pressed, "#add-provider-sidebar-btn")
-    async def _on_add_provider_btn(self) -> None:
-        """Open the Add Provider dialog."""
-        existing = self.agent.providers.list_providers() if self.agent else []
-        dialog = AddProviderDialog(existing)
-        
-        async def on_result(provider_name: str | None):
-            if provider_name is None:
-                return
-            # Get the result data from the dialog
-            data = getattr(dialog, '_result', None)
-            if not data:
-                return
-            
-            name = data["name"]
-            base_url = data["base_url"]
-            api_key = data["api_key"]
-            models = data["models"]
-            default_model = data["default_model"]
-            
-            # Register provider at runtime
-            cfg = ProviderConfig(
-                api_key=api_key,
-                base_url=base_url,
-                models=models,
-                default_model=default_model,
-            )
-            ok = self.agent.providers.register_runtime_provider(name, cfg)
-            if ok:
-                # Switch to new provider
-                self.agent.config.active_provider = name
-                self.agent.config.active_model = default_model
-                self._populate_provider_select()
-                self._populate_model_select(name)
-                self._update_sidebar()
-                self.notify(f"✨ Provider '{name}' added! ({len(models)} models)")
-            else:
-                self.notify(f"Provider '{name}' already registered", severity="warning")
-        
-        self.app.push_screen(dialog, callback=on_result)
-
     async def on_mount(self) -> None:
         """Called when screen is mounted. Initialize agent."""
         KeymapRegistry.apply_to_screen(self)
@@ -1187,8 +1175,6 @@ class HomeScreen(Screen[Any]):
                 response_area.write("  [dim](none yet — just start typing!)[/dim]\n")
 
             self._populate_session_select()
-            self._populate_provider_select()
-            self._populate_model_select()
             self._update_sidebar()
             input_widget.focus()
 
