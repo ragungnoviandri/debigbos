@@ -23,9 +23,17 @@ class Updater:
 
     def _find_repo(self) -> Optional[Path]:
         """Find the git repository path."""
-        # Try detecting from package location first
+        # updater.py is at debigbos/core/updater.py → go up 3 levels for root
         try:
-            pkg_dir = Path(__file__).resolve().parent.parent  # debigbos/core -> debigbos -> ..
+            pkg_dir = Path(__file__).resolve().parent.parent.parent
+            if (pkg_dir / ".git").exists():
+                return pkg_dir
+        except Exception:
+            pass
+        # Also try the __init__.py approach (debigbos/__init__.py → 2 levels up)
+        try:
+            from debigbos import __file__ as init_file
+            pkg_dir = Path(init_file).resolve().parent.parent
             if (pkg_dir / ".git").exists():
                 return pkg_dir
         except Exception:
@@ -54,7 +62,7 @@ class Updater:
         """Get local version from __init__.py."""
         try:
             if self.repo_path:
-                init_file = self.repo_path / "deBigBos" / "__init__.py"
+                init_file = self.repo_path / "debigbos" / "__init__.py"
                 if init_file.exists():
                     content = init_file.read_text()
                     for line in content.split("\n"):
