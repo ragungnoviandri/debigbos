@@ -386,6 +386,21 @@ class BigBosApp(App[Any]):
     }
     #settings-tabs {
         height: auto;
+        max-height: 1fr;
+    }
+    #settings-tabs TabPane {
+        height: auto;
+        max-height: 1fr;
+    }
+    #provider-list {
+        max-height: 12;
+    }
+    #skill-toggle-list {
+        max-height: 12;
+    }
+    #settings-actions {
+        dock: bottom;
+        padding: 1 0;
     }
     TabPane {
         padding: 0 1;

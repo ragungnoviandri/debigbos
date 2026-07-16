@@ -517,7 +517,7 @@ class SettingsDialog(ModalScreen[None]):
                     yield VerticalScroll(id="skill-toggle-list")
 
             yield ModalLabel("")
-            with Horizontal():
+            with Horizontal(id="settings-actions"):
                 yield ModalButton("💾 Save & Close", variant="primary", id="settings-save-btn")
                 yield ModalButton("Cancel", variant="default", id="settings-cancel-btn")
 
