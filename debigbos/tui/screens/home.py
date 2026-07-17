@@ -49,6 +49,7 @@ from textual.widgets import (
 )
 
 from ..keymap import KeymapRegistry
+from ...models.provider import Message
 from ...tools.git_utils import GitWorkspace
 from ...config.manager import ProviderConfig
 from ...models.provider import Message as ProviderMessage
@@ -548,31 +549,63 @@ class HomeScreen(Screen[Any]):
     # ——— Chat message rendering (OpenCode-style) ———
 
     @staticmethod
-    def _render_message(role: str, content: str) -> str:
-        """Render a single message in OpenCode's clean terminal style."""
-        if not content.strip():
+    def _render_message(msg: Message) -> str:
+        """Render a message with structured sections — User · Thought · Tools · Summary."""
+        role = msg.role
+        content = msg.content
+        if not content.strip() and role != "assistant":
             return ""
 
         limits = {"user": 1000, "assistant": 4000, "reasoning": 800, "tool": 200}
         limit = limits.get(role, 2000)
-        text = content[:limit]
 
         if role == "user":
-            escaped = _rich_escape(text)
-            return f"[bold cyan]▸[/bold cyan] {escaped}"
-
-        if role == "assistant":
-            return _rich_escape(text)
+            escaped = _rich_escape(content[:limit])
+            return (
+                f"[dim]──[/dim]\n"
+                f"[bold cyan]▸ User :[/bold cyan] {escaped}"
+            )
 
         if role == "reasoning":
-            escaped = _rich_escape(text)
-            return f"[dim italic]  Thought: {escaped}[/dim italic]"
+            escaped = _rich_escape(content[:limit])
+            return (
+                f"[dim]────[/dim]\n"
+                f"[bold #fab283]💭 Thought :[/bold #fab283]\n"
+                f"  [dim italic]{escaped}[/dim italic]"
+            )
 
         if role == "tool":
-            escaped = _rich_escape(text)
-            return f"[dim]  ⚙ {escaped}[/dim]"
+            escaped = _rich_escape(content[:limit])
+            name = msg.name or "tool"
+            return (
+                f"[dim]────[/dim]\n"
+                f"[bold yellow]🛠 Tool ({name}) :[/bold yellow]\n"
+                f"  [dim]{escaped}[/dim]"
+            )
 
-        return _rich_escape(text)
+        # Assistant — build sections
+        parts = []
+        sep = f"\n[dim]────[/dim]\n"
+
+        # 1. Reasoning (if any)
+        if msg.reasoning_content:
+            r = _rich_escape(msg.reasoning_content[:800])
+            parts.append(f"[bold #fab283]💭 Thought :[/bold #fab283]\n  [dim italic]{r}[/dim italic]")
+
+        # 2. Tool calls (if any)
+        if msg.tool_calls:
+            tools_str = "\n".join(
+                f"  [bold yellow]🛠 {tc.name}[/bold yellow] [dim]({tc.id[:8]})[/dim]"
+                for tc in msg.tool_calls[:5]
+            )
+            parts.append(f"[bold yellow]⚙ Tools :[/bold yellow]\n{tools_str}")
+
+        # 3. Main content as Summary
+        if content.strip():
+            c = _rich_escape(content[:limit])
+            parts.append(f"[bold green]📋 Summary :[/bold green]\n{c}")
+
+        return sep.join(parts) if parts else ""
 
     def _load_history(self) -> None:
         """Display loaded session history — OpenCode-style clean rendering."""
@@ -598,7 +631,7 @@ class HomeScreen(Screen[Any]):
             if msg.role == "user" and prev_role and prev_role != "user":
                 response_area.write("\n")
 
-            rendered = self._render_message(msg.role, msg.content)
+            rendered = self._render_message(msg)
             if rendered:
                 response_area.write(f"{rendered}\n")
 
@@ -2049,11 +2082,14 @@ class HomeScreen(Screen[Any]):
             response_area = self.query_one("#response-area", ResponseArea)
             response_area.clear()
             response_area.write(f"[green]📂 Loaded session: [bold]{session_id[:8]}[/bold][/green]\n")
-            # Replay session messages
-            replay_messages = self.agent.sessions.history(session_id)
-            for msg in replay_messages:
-                if msg.role == "assistant":
-                    response_area.write(msg.content)
+            # Replay session messages from active session
+            session = self.agent.sessions.active
+            if session:
+                for msg in session.messages:
+                    if msg.role in ("assistant", "user", "reasoning", "tool"):
+                        rendered = self._render_message(msg)
+                        if rendered:
+                            response_area.write(f"{rendered}\n")
             self._update_sidebar()
             self.notify(f"Switched to session {session_id[:8]}", severity="success")
         else:
