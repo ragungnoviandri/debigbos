@@ -474,6 +474,12 @@ class CommandPalette(ModalScreen[None]):
             ("Enter",    "Send Message"),
             ("Ctrl+J",   "New Line"),
             ("↑ / ↓",    "History"),
+            ("Ctrl+C",   "Copy Selection"),
+            ("Ctrl+Q",   "Quit"),
+            ("/help",    "Show help"),
+            ("/clear",   "Clear response"),
+            ("/copy",    "Copy last reply"),
+            ("/exit",    "Quit"),
         ]},
         {"title": "🧭 Navigate",  "items": [
             ("Esc",      "Focus Chat Input"),
@@ -483,14 +489,30 @@ class CommandPalette(ModalScreen[None]):
         ]},
         {"title": "📁 Sessions",  "items": [
             ("Ctrl+S",   "Session List"),
-            ("Ctrl+R",   "Rename Session"),
+            ("Ctrl+R",   "Rename"),
             ("Ctrl+N",   "New Session"),
+            ("/new",     "New session"),
+            ("/sessions","List all"),
+            ("/switch","Switch by ID"),
+            ("/compact", "Compact context"),
+            ("/fix",     "Fix session"),
+            ("/dump",    "Dump session"),
+            ("/resume",  "Toggle resume"),
+            ("/loadmore","Load history"),
         ]},
-        {"title": "⚡ Actions",  "items": [
+        {"title": "⚡ Models & Config",  "items": [
             ("Ctrl+M",   "Change Model"),
             ("Ctrl+,",   "Settings"),
-            ("Ctrl+Q",   "Quit"),
-            ("Ctrl+C",   "Copy Selection"),
+            ("/model","Set active model"),
+            ("/provider","Set provider"),
+            ("/connect", "Reconnect agent"),
+        ]},
+        {"title": "🧠 Memory & Skills",  "items": [
+            ("/remember","Remember fact"),
+            ("/recall",  "Recall facts"),
+            ("/skills",  "List skills"),
+            ("/learn",   "Learn skill"),
+            ("/learn-suggest","Suggest skill"),
         ]},
         {"title": "💻 CLI",  "items": [
             ("debigbos init",    "Init config"),
@@ -499,11 +521,14 @@ class CommandPalette(ModalScreen[None]):
             ("debigbos config",  "View/change config"),
             ("debigbos run",     "One-shot query"),
             ("debigbos chat",    "Launch TUI"),
-            ("debigbos server",  "HTTP API server"),
+            ("debigbos workspace","Switch project"),
             ("debigbos import",  "Import sessions"),
             ("debigbos sessions","List/rename"),
             ("debigbos update",  "Check update"),
             ("debigbos version", "Show version"),
+        ]},
+        {"title": "📁 Workspace",  "items": [
+            ("/workspace","Switch project folder"),
         ]},
     ]
 
@@ -515,19 +540,26 @@ class CommandPalette(ModalScreen[None]):
             yield Label("[bold #5c9cf5]        ║        🔍  Command Palette           ║")
             yield Label("[bold #5c9cf5]        ╚══════════════════════════════════════╝")
             yield Label("")
-            yield Label("[dim]        Press a keybinding to execute — Esc to close[/dim]")
+            yield Label("[dim]        Press a keybinding or type a slash command — Esc to close[/dim]")
             yield Label("")
 
             # Row 1: Chat + Navigate + Sessions
             with Horizontal():
-                for i in range(4):
+                for i in range(3):
                     yield Static(self._build_category_block(self.CATEGORIES[i]), classes="cmd-col")
             yield Label("")
 
-            # Row 2: Actions + CLI
+            # Row 2: Models & Config + Memory & Skills + CLI
             with Horizontal():
-                for i in range(4, 5):
+                for i in range(3, 6):
                     yield Static(self._build_category_block(self.CATEGORIES[i]), classes="cmd-col")
+            yield Label("")
+
+            # Row 3: Workspace (centered)
+            with Horizontal():
+                yield Static("", classes="cmd-col")
+                yield Static(self._build_category_block(self.CATEGORIES[6]), classes="cmd-col")
+                yield Static("", classes="cmd-col")
 
     def _build_category_block(self, cat: dict) -> str:
         lines = [f"[bold #fab283]  {cat['title']}[/bold #fab283]"]

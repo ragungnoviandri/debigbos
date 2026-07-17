@@ -1172,6 +1172,24 @@ class HomeScreen(Screen[Any]):
                 self.notify(f"Model: {self.agent.config.active_model}")
                 self._update_sidebar()
 
+        elif cmd.startswith("/provider "):
+            if self.agent:
+                self.agent.config.active_provider = cmd[10:].strip()
+                self.notify(f"Provider: {self.agent.config.active_provider}")
+                self._update_sidebar()
+
+        elif cmd.startswith("/connect"):
+            if self.agent:
+                response_area.write("[dim]Reconnecting...[/dim]\n")
+                try:
+                    await self.agent.initialize()
+                    response_area.write("[green]Connected![/green]\n")
+                except Exception as e:
+                    response_area.write(f"[red]Connection failed: {e}[/red]\n")
+
+        elif cmd == "/new":
+            self.action_new_session()
+
         # —— Memory commands ——
         elif cmd.startswith("/remember "):
             parts = cmd[10:].strip()

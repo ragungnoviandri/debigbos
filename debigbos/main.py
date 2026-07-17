@@ -129,6 +129,15 @@ def parse_args() -> argparse.Namespace:
     uninstall_parser.add_argument("--keep-config", action="store_true", default=True, help="Keep config files")
     uninstall_parser.add_argument("--yes", action="store_true", help="Skip confirmation")
 
+    # Workspace (switch project)
+    ws_parser = subparsers.add_parser("workspace", help="Switch project workspace & launch TUI")
+    ws_parser.add_argument("path", type=str, help="Path to project folder")
+    ws_parser.add_argument("-m", "--model", type=str, default="", help="Model to use")
+    ws_parser.add_argument("-p", "--provider", type=str, default="", help="Provider to use")
+    ws_parser.add_argument("-r", "--reasoning", type=str, default="medium", choices=["low", "medium", "high"],
+                          help="Reasoning effort level")
+    ws_parser.add_argument("--auto", action="store_true", help="Auto-approve all tool calls")
+
     return parser.parse_args()
 
 
@@ -1107,6 +1116,23 @@ async def run_uninstall(args: argparse.Namespace) -> None:
     print("  Config + .debigbos/ folders kept.")
 
 
+async def run_workspace(args: argparse.Namespace) -> None:
+    """Switch project workspace and launch TUI."""
+    path = Path(args.path).resolve()
+    if not path.is_dir():
+        print(f"  [red]Error:[/red] '{path}' is not a valid directory")
+        sys.exit(1)
+
+    # Check that it looks like a project (has .debigbos/ or any project files)
+    print(f"  [green]Switching workspace to:[/green] {path}")
+    print()
+
+    # Launch TUI with the new workspace
+    from debigbos.tui.app import BigBosTUI
+    tui = BigBosTUI(path)
+    await tui.run_async()
+
+
 async def main_async() -> None:
     """Async entry point."""
     args = parse_args()
@@ -1172,6 +1198,10 @@ async def main_async() -> None:
 
     if args.command == "uninstall":
         await run_uninstall(args)
+        return
+
+    if args.command == "workspace":
+        await run_workspace(args)
         return
 
     # Default: TUI mode (chat or no subcommand)
