@@ -444,9 +444,30 @@ TabPane {
     overflow-y: auto;
 }
 .provider-row {
-    height: auto; /* tinggi 1 baris provider */
+    height: auto;
     padding: 0 1;
     border-bottom: solid gray;
+    align: center middle;  /* vertical center all children */
+}
+.provider-row > * {
+    height: auto;
+}
+.provider-name {
+    width: auto;
+    height: auto;
+    content-align-horizontal: left;
+    content-align-vertical: center;
+    padding: 0 1;
+}
+.provider-model-select {
+    width: 1fr;
+    height: 3;
+}
+.use-btn {
+    width: auto;
+    min-width: 6;
+    height: 3;
+    margin-left: 1;
 }
 
 /* ══════════════════════════════════════════════════════════

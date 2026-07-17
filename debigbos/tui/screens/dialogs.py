@@ -69,9 +69,10 @@ class SettingsDialog(ModalScreen[None]):
                             model_options = [(m, m) for m in models] if models else [("none", "")]
                             active_model = cfg.default_model or (models[0] if models else "")
                             with Horizontal(id=f"provider-row-{name}", classes="provider-row"):
-                                yield Label(f"  {marker} [bold]{name}[/bold]", id=f"plabel-{name}")
-                                yield Select(model_options, prompt="Model", id=f"model-{name}", value=active_model)
+                                yield Label(f"  {marker} [bold]{name}[/bold]", id=f"plabel-{name}", classes="provider-name")
+                                yield Select(model_options, prompt="Model", id=f"model-{name}", value=active_model, classes="provider-model-select")
                                 yield Button("✎", variant="default", id=f"edit-provider-btn-{name}", classes="icon-btn")
+                                yield Button("Use", variant="primary", id=f"use-provider-btn-{name}", classes="icon-btn use-btn")
                     else:
                         yield Label("  [dim]No providers configured[/dim]")
                     yield Label("")
@@ -158,6 +159,40 @@ class SettingsDialog(ModalScreen[None]):
             await asyncio.sleep(0.1)
             worker2 = self.run_worker(self._home._show_settings(), exclusive=True)
             await worker2.wait()
+
+    @on(Button.Pressed, "#add-provider-btn")
+    async def _on_add_provider_dialog(self) -> None:
+        agent = self._home.agent
+        if not agent:
+            return
+        existing = list(agent.config.providers.keys())
+        dialog = AddProviderDialog(existing)
+        worker = self.run_worker(self.app.push_screen_wait(dialog), exclusive=True)
+        result = await worker.wait()
+        if result:
+            data = getattr(dialog, '_result', None)
+            if data:
+                cfg = ProviderConfig(
+                    api_key=data["api_key"],
+                    base_url=data["base_url"],
+                    models=data["models"],
+                    default_model=data["default_model"],
+                )
+                ok = agent.providers.register_runtime_provider(data["name"], cfg)
+                if ok:
+                    agent.config.active_provider = data["name"]
+                    agent.config.active_model = data["default_model"]
+                    agent.notify(f"✨ Provider '{data['name']}' added!")
+            self.dismiss(None)
+            await asyncio.sleep(0.1)
+            worker2 = self.run_worker(self._home._show_settings(), exclusive=True)
+            await worker2.wait()
+
+    @on(Button.Pressed, ".use-btn")
+    def _on_use_provider(self, event: Button.Pressed) -> None:
+        """Click 'Use' button → switch active provider."""
+        provider_name = event.button.id.replace("use-provider-btn-", "")
+        self._switch_provider(provider_name)
 
     def _populate_skill_toggles(self) -> None:
         from collections import defaultdict
