@@ -59,7 +59,6 @@ from .widgets import (
     StatusBar,
     SidebarWidget,
     ToolLogWidget,
-    ShortcutsWidget,
     ResponseArea,
 )
 from .dialogs import SettingsDialog, AddProviderDialog
@@ -67,21 +66,9 @@ from .dialogs import SettingsDialog, AddProviderDialog
 from rich.markup import escape as _rich_escape
 import re
 
-
 def _strip_markup(text: str) -> str:
     """Strip Rich markup tags to get plain text length."""
     return re.sub(r"\[/?[^\]]*\]", "", text)
-
-
-
-
-
-
-
-
-
-
-
 
 class HomeScreen(Screen[Any]):
     """Main home screen with chat, sidebar, and tool log."""
@@ -153,8 +140,8 @@ class HomeScreen(Screen[Any]):
                 # Session
                 yield SidebarWidget(id="sidebar-info")
 
-                # Keyboard shortcuts reference
-                yield ShortcutsWidget(id="sidebar-shortcuts")
+                # Keyboard shortcuts via Ctrl+P
+                yield Label("[dim]Press [bold]Ctrl+P[/bold] for commands[/dim]", id="sidebar-cmd-hint")
 
                 # Version — fixed at bottom, clickable
                 yield VersionLabel(id="sidebar-version")

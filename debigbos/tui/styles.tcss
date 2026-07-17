@@ -316,7 +316,7 @@ DialogSelect > Center {
 #add-provider-dialog {
     width: 55%;
     height: auto;
-    max-height: 95%;
+    max-height: 80%;
     background: #0f0f23 95%;
     border: thick #fab283;
     padding: 2 3;
@@ -328,7 +328,7 @@ DialogSelect > Center {
    ══════════════════════════════════════════════════════════ */
 #settings-dialog {
     width: 80%;
-    height: auto;
+    height: 90%;
     border: solid green;
     background: $surface;
     padding: 1;
@@ -342,10 +342,25 @@ DialogSelect > Center {
 #settings-actions Button {
     margin-left: 1;
 }
+
+/* TABS */
+#settings-tabs {
+    height: auto;
+    border: solid gray;
+}
+#settings-tabs TabPane {
+    height: auto;
+}
+TabPane {
+    padding: 0 1;
+}
+
+/* SKILLS SECTION */
 #settings-dialog .skill-row {
     border-bottom: solid #333;
     padding: 0 1;
     height: auto;
+    border: solid gray;
 }
 #settings-dialog .skill-row Label {
     width: 1fr;
@@ -353,25 +368,22 @@ DialogSelect > Center {
 #settings-dialog .skill-row Switch {
     width: auto;
 }
-#settings-tabs {
-    height: auto;
-    max-height: 1fr;
+#skill-toggle-list {
+    height: 1fr;
+    overflow-y: auto;
+    border: solid gray;
 }
-#settings-tabs TabPane {
-    height: auto;
-    max-height: 1fr;
-}
+
+/* PROVIDERS SECTION */
 #provider-list {
     max-height: 12;
-}
-#skill-toggle-list {
-    max-height: 12;
-}
-TabPane {
-    padding: 0 1;
+    border: solid gray;
+    overflow-y: auto;
 }
 .provider-row {
+    height: auto; /* tinggi 1 baris provider */
     padding: 0 1;
+    border-bottom: solid gray;
 }
 
 /* ══════════════════════════════════════════════════════════

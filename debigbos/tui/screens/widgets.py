@@ -370,46 +370,6 @@ class ToolLogWidget(Static):
         return "\n".join(lines)
 
 
-# ── Shortcuts Widget ────────────────────────────────────
-
-class ShortcutsWidget(Static):
-    """Command palette reference in sidebar."""
-
-    def render(self) -> str:
-        shortcuts = [
-            ("[bold #5c9cf5]⌘ Command Palette[/bold #5c9cf5]", ""),
-            ("", ""),
-            ("[bold #fab283]Chat[/bold #fab283]", ""),
-            ("Enter", "Send"),
-            ("Ctrl+J", "New Line"),
-            ("↑ / ↓", "History"),
-            ("", ""),
-            ("[bold #5c9cf5]Navigate[/bold #5c9cf5]", ""),
-            ("Esc", "Focus Input"),
-            ("Tab", "Plan ⇄ Build"),
-            ("Ctrl+P", "Command Palette"),
-            ("Ctrl+S", "Sessions"),
-            ("Ctrl+M", "Models"),
-            ("Ctrl+H", "Help"),
-            ("", ""),
-            ("[bold #a0d2a0]Actions[/bold #a0d2a0]", ""),
-            ("Ctrl+C", "Copy Selection"),
-            ("Ctrl+R", "Rename"),
-            ("Ctrl+Q", "Quit"),
-            ("Shift+Drag", "Select Text"),
-        ]
-
-        lines = []
-        for key, desc in shortcuts:
-            if not key and not desc:
-                lines.append("")
-            elif not desc:
-                lines.append(key)
-            else:
-                lines.append(f" [dim]{key:<14}[/dim] [dim italic]{desc}[/dim italic]")
-        return "\n".join(lines)
-
-
 # ── Response Area ───────────────────────────────────────
 
 class ResponseArea(RichLog):
