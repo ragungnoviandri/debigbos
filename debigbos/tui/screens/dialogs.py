@@ -492,6 +492,19 @@ class CommandPalette(ModalScreen[None]):
             ("Ctrl+Q",   "Quit"),
             ("Ctrl+C",   "Copy Selection"),
         ]},
+        {"title": "💻 CLI",  "items": [
+            ("bos init",    "Init config"),
+            ("bos install", "Global install"),
+            ("bos setup",   "Interactive setup"),
+            ("bos config",  "View/change config"),
+            ("bos run",     "One-shot query"),
+            ("bos chat",    "Launch TUI"),
+            ("bos server",  "HTTP API server"),
+            ("bos import",  "Import sessions"),
+            ("bos sessions","List/rename"),
+            ("bos update",  "Check update"),
+            ("bos version", "Show version"),
+        ]},
     ]
 
     BINDINGS = [("escape", "dismiss", "Close")]
@@ -505,17 +518,16 @@ class CommandPalette(ModalScreen[None]):
             yield Label("[dim]        Press a keybinding to execute — Esc to close[/dim]")
             yield Label("")
 
-            # Row 1: Chat + Navigate
+            # Row 1: Chat + Navigate + Sessions
             with Horizontal():
-                yield Static(self._build_category_block(self.CATEGORIES[0]), classes="cmd-col")
-                yield Static(self._build_category_block(self.CATEGORIES[1]), classes="cmd-col")
-
+                for i in range(3):
+                    yield Static(self._build_category_block(self.CATEGORIES[i]), classes="cmd-col")
             yield Label("")
 
-            # Row 2: Sessions + Actions
+            # Row 2: Actions + CLI
             with Horizontal():
-                yield Static(self._build_category_block(self.CATEGORIES[2]), classes="cmd-col")
-                yield Static(self._build_category_block(self.CATEGORIES[3]), classes="cmd-col")
+                for i in range(3, 5):
+                    yield Static(self._build_category_block(self.CATEGORIES[i]), classes="cmd-col")
 
     def _build_category_block(self, cat: dict) -> str:
         lines = [f"[bold #fab283]  {cat['title']}[/bold #fab283]"]
