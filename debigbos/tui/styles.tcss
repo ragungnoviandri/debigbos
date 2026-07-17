@@ -1,0 +1,417 @@
+/* ============================================================
+   de BigBos — Global Stylesheet (styles.tcss)
+   Semua CSS project ada di sini. Auto-reload dengan:
+     textual run --dev debigbos
+   ============================================================ */
+
+/* ── Root Screen ─────────────────────────────────────── */
+Screen {
+    background: #0a0a0a;
+}
+
+/* ── Layout: Main Area ───────────────────────────────── */
+#main-area {
+    width: 3fr;
+    height: 100%;
+    border-right: solid #4b4c5c;
+}
+
+/* ── Sidebar ─────────────────────────────────────────── */
+#sidebar {
+    width: 1fr;
+    height: 100%;
+    padding: 1;
+    background: #212121;
+}
+#sidebar-info {
+    height: auto;
+    color: #e0e0e0;
+}
+SidebarWidget {
+    padding: 1;
+}
+#sidebar-session-label {
+    padding: 0 1;
+    margin-top: 1;
+}
+.icon-btn {
+    min-width: 3;
+    width: auto;
+    padding: 0 1;
+    border: none;
+    background: transparent;
+}
+.icon-btn:hover {
+    background: #333;
+}
+#sidebar-header {
+    height: auto;
+    align: center middle;
+}
+#sidebar-header #sidebar-session-label {
+    width: 1fr;
+    margin-top: 0;
+}
+#sidebar-header #settings-btn {
+    width: 3;
+    min-width: 3;
+    dock: right;
+}
+#sidebar-provider-label,
+#sidebar-model-label {
+    padding: 0 1;
+    margin-top: 1;
+}
+#provider-select,
+#model-select {
+    margin: 0 1;
+    width: 100%;
+}
+#provider-controls {
+    width: 100%;
+    height: auto;
+    align: center middle;
+}
+#provider-controls Select {
+    width: 1fr;
+}
+#provider-controls Button {
+    min-width: 4;
+}
+#session-select {
+    margin: 0 1;
+    width: 100%;
+}
+#session-controls {
+    width: 100%;
+    height: auto;
+}
+#session-controls Select {
+    width: 1fr;
+}
+#delete-session-btn {
+    min-width: 4;
+    height: 3;
+    margin-right: 1;
+}
+#git-actions {
+    width: 100%;
+    height: auto;
+    margin-top: 1;
+    align: center middle;
+}
+#git-actions Button {
+    width: 1fr;
+}
+
+/* ── Keyboard shortcuts panel ────────────────────────── */
+#sidebar-shortcuts {
+    height: auto;
+    padding: 1;
+    margin-top: 1;
+    border-top: dashed #4b4c5c;
+    color: #6a6a6a;
+}
+
+/* ── Version label (sidebar) ─────────────────────────── */
+#sidebar-version {
+    height: auto;
+    padding: 1 1 1 1;
+    color: #6a6a6a;
+    text-style: dim;
+    border: none;
+    background: transparent;
+    min-height: 0;
+}
+#sidebar-version:hover {
+    color: #e0e0e0;
+    background: #333333;
+}
+VersionLabel {
+    height: auto;
+}
+
+/* ── Response Area ───────────────────────────────────── */
+#response-area {
+    height: 5fr;
+    padding: 1 2;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    border: none;
+}
+
+/* ── Tool Log ────────────────────────────────────────── */
+#tool-log {
+    height: auto;
+    max-height: 6;
+    padding: 1 2;
+    background: #252525;
+    border-top: solid #4b4c5c;
+    color: #6a6a6a;
+}
+#tool-log.hidden {
+    display: none;
+}
+
+/* ── Prompt / Input Area ─────────────────────────────── */
+#prompt-area {
+    height: auto;
+    padding: 2 1 1 1;
+    background: #212121;
+    border-top: solid #4b4c5c;
+}
+
+/* Mode toggle — vertical, left of chatbox */
+#mode-toggle {
+    width: auto;
+    min-width: 8;
+    height: auto;
+    align: center middle;
+}
+.mode-btn {
+    width: 100%;
+    height: auto;
+    min-height: 3;
+    margin-bottom: 0;
+}
+/* Build mode (blue — code action, execution) */
+.mode-build {
+    background: #5c9cf5 80%;
+    border: solid #5c9cf5;
+    color: #ffffff;
+}
+/* Plan mode (orange — thinking, strategy) */
+.mode-plan {
+    background: #fab283 80%;
+    border: solid #fab283;
+    color: #000000;
+}
+#prompt-input {
+    width: 1fr;
+    height: auto;
+    min-height: 3;
+    max-height: 12;
+    border: none;
+    border-left: solid #fab283;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    padding: 0 1;
+}
+#send-btn {
+    min-width: 10;
+    height: 3;
+    background: #fab283;
+    color: #000000;
+}
+
+/* ── Status Bar ──────────────────────────────────────── */
+#status-bar {
+    height: 1;
+    padding: 0 2;
+    background: #212121;
+    color: #6a6a6a;
+}
+
+/* ── Header ──────────────────────────────────────────── */
+Header {
+    background: #0a0a0a;
+    color: #fab283;
+}
+
+/* ── Scrollbar ───────────────────────────────────────── */
+Scrollbar {
+    scrollbar-color: #4b4c5c;
+    scrollbar-color-hover: #5c9cf5;
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODAL / DIALOG — Global
+   ══════════════════════════════════════════════════════════ */
+ModalScreen {
+    background: transparent;
+    align: center middle;
+}
+
+DialogAlert > Center,
+DialogConfirm > Center,
+DialogPrompt > Center,
+DialogSelect > Center {
+    background: #212121;
+    border: thick #fab283;
+    padding: 1 2;
+}
+
+.modal-container {
+    background: #1a1a2e;
+    border: thick #5c9cf5;
+    padding: 1 2;
+    align: center middle;
+}
+#dialog-title {
+    background: #5c9cf5;
+    color: #000000;
+    padding: 0 2;
+    text-style: bold;
+}
+#dialog-body {
+    width: 100%;
+    height: auto;
+    padding: 1 0;
+}
+#dialog-body Label {
+    padding: 0 1;
+    margin-top: 1;
+}
+#dialog-body Input {
+    width: 100%;
+    margin: 0 1;
+}
+#dialog-body Select {
+    width: 100%;
+    margin: 0 1;
+}
+#dialog-actions {
+    width: 100%;
+    height: auto;
+    align: center middle;
+    padding: 1 0;
+    margin-top: 1;
+}
+#dialog-actions Button {
+    margin: 0 1;
+    min-width: 16;
+}
+/* ── Container dgn tombol di kanan bawah ──────────────── */
+#settings-actions {
+    dock: bottom;
+    padding: 1 0;
+}
+
+/* ── Commit dialog ───────────────────────────────────── */
+#commit-dialog {
+    width: 65%;
+    height: auto;
+    min-height: 14;
+    background: #0f0f23 95%;
+    border: thick #5c9cf5;
+    padding: 2 3;
+    align: center middle;
+}
+#commit-dialog.mode-plan {
+    border: thick #fab283;
+}
+#commit-dialog.mode-build {
+    border: thick #5c9cf5;
+}
+#commit-msg-input {
+    width: 100%;
+    margin: 1 0;
+    height: 5;
+    background: #0a0a0a;
+    border: solid #4b4c5c;
+    color: #e0e0e0;
+}
+
+/* ── Add Provider dialog ─────────────────────────────── */
+#add-provider-dialog {
+    width: 55%;
+    height: auto;
+    max-height: 95%;
+    background: #0f0f23 95%;
+    border: thick #fab283;
+    padding: 2 3;
+    align: center middle;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SETTINGS DIALOG
+   ══════════════════════════════════════════════════════════ */
+#settings-dialog {
+    width: 60;
+    max-width: 70;
+    height: auto;
+    max-height: 80%;
+    background: #1a1a2e;
+    border: thick #5c9cf5;
+    padding: 1;
+}
+#settings-dialog .skill-row {
+    border-bottom: solid #333;
+    padding: 0 1;
+    height: auto;
+}
+#settings-dialog .skill-row Label {
+    width: 1fr;
+}
+#settings-dialog .skill-row Switch {
+    width: auto;
+}
+#settings-tabs {
+    height: auto;
+    max-height: 1fr;
+}
+#settings-tabs TabPane {
+    height: auto;
+    max-height: 1fr;
+}
+#provider-list {
+    max-height: 12;
+}
+#skill-toggle-list {
+    max-height: 12;
+}
+TabPane {
+    padding: 0 1;
+}
+.provider-row {
+    padding: 0 1;
+}
+
+/* ══════════════════════════════════════════════════════════
+   SESSION PICKER
+   ══════════════════════════════════════════════════════════ */
+SessionPicker {
+    align: center middle;
+    background: transparent;
+}
+SessionPicker > Vertical {
+    width: 50;
+    height: 10;
+    max-height: 80%;
+    background: #212121;
+    border: thick #5c9cf5;
+    padding: 1 2;
+}
+
+/* ══════════════════════════════════════════════════════════
+   RENAME DIALOG
+   ══════════════════════════════════════════════════════════ */
+RenameDialog {
+    align: center middle;
+    background: transparent;
+}
+RenameDialog > Vertical {
+    width: 50;
+    height: auto;
+    background: #212121;
+    border: thick #5c9cf5;
+    padding: 1 2;
+}
+
+/* ── Update Dialog ───────────────────────────────────── */
+#version-dialog {
+    width: 55%;
+    height: auto;
+    background: #1a1a2e;
+    border: thick #5c9cf5;
+    padding: 2 3;
+    align: center middle;
+}
+#update-dialog {
+    width: 55%;
+    height: auto;
+    background: #1a1a2e;
+    border: thick #5c9cf5;
+    padding: 2 3;
+    align: center middle;
+}
