@@ -211,7 +211,6 @@ VersionLabel {
     height: auto;
     max-height: 12;
     min-width: 30;
-    dock: bottom;
     margin: 0 8 0 8;
     background: #151515;
     border: solid #5c9cf5;

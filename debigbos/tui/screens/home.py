@@ -154,6 +154,9 @@ class HomeScreen(Screen[Any]):
                     yield Button("📦 Commit", variant="default", id="commit-btn")
                     yield Button("🚀 Push", variant="default", id="push-btn")
 
+        # ── Slash-command autocomplete (dropup above input) ─
+        yield ListView(id="cmd-suggest", classes="cmd-suggest-hidden")
+
         # Prompt area — OpenCode-style: mode toggle | input field | send
         with Horizontal(id="prompt-area"):
             with Vertical(id="mode-toggle"):
@@ -163,9 +166,6 @@ class HomeScreen(Screen[Any]):
                 classes="chat-input",
             )
             yield Button("⏎", variant="primary", id="send-btn")
-
-        # ── Slash-command autocomplete dropdown ──────────
-        yield ListView(id="cmd-suggest", classes="cmd-suggest-hidden")
 
         yield StatusBar(id="status-bar")
 
