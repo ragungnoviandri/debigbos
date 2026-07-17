@@ -45,17 +45,19 @@ SidebarWidget {
     background: #333;
 }
 #sidebar-header {
+    width: 100%;
     height: auto;
-    align: center middle;
+    align-horizontal: right;
+    align-vertical: middle;
+    padding: 0 1;
 }
 #sidebar-header #sidebar-session-label {
     width: 1fr;
-    margin-top: 0;
+    align-horizontal: left;
 }
 #sidebar-header #settings-btn {
-    width: 3;
+    width: 4;
     min-width: 3;
-    dock: right;
 }
 #sidebar-provider-label,
 #sidebar-model-label {
@@ -202,6 +204,37 @@ VersionLabel {
     height: 3;
     background: #fab283;
     color: #000000;
+}
+
+/* ── Slash-command autocomplete dropdown ──────────── */
+#cmd-suggest {
+    height: auto;
+    max-height: 12;
+    min-width: 30;
+    dock: bottom;
+    margin: 0 8 0 8;
+    background: #151515;
+    border: solid #5c9cf5;
+    display: none;
+    overflow-y: auto;
+}
+#cmd-suggest.cmd-suggest-visible {
+    display: block;
+}
+#cmd-suggest ListItem {
+    padding: 0 2;
+    min-height: 2;
+}
+#cmd-suggest ListItem:hover,
+#cmd-suggest ListItem:focus {
+    background: #5c9cf5 30%;
+}
+#cmd-suggest ListItem .cmd-suggest-key {
+    color: #fab283;
+    min-width: 16;
+}
+#cmd-suggest ListItem .cmd-suggest-desc {
+    color: #888888;
 }
 
 /* ── Status Bar ──────────────────────────────────────── */

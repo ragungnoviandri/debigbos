@@ -39,6 +39,8 @@ from textual.widgets import (
     Header,
     Input,
     Label,
+    ListItem,
+    ListView,
     RichLog,
     Select,
     Static,
@@ -161,6 +163,9 @@ class HomeScreen(Screen[Any]):
                 classes="chat-input",
             )
             yield Button("⏎", variant="primary", id="send-btn")
+
+        # ── Slash-command autocomplete dropdown ──────────
+        yield ListView(id="cmd-suggest", classes="cmd-suggest-hidden")
 
         yield StatusBar(id="status-bar")
 
@@ -659,6 +664,96 @@ class HomeScreen(Screen[Any]):
 
         # Always re-focus chat input after sending
         self.query_one("#prompt-input", ChatInput).focus()
+
+    # ── Slash-command autocomplete ───────────────────────
+
+    SLASH_COMMANDS: list[tuple[str, str]] = [
+        ("/help",       "Show help & shortcuts"),
+        ("/clear",      "Clear response area"),
+        ("/copy",       "Copy last response"),
+        ("/exit",       "Quit de BigBos"),
+        ("/sessions",   "List all sessions"),
+        ("/new",        "New session"),
+        ("/switch",     "Switch session by ID"),
+        ("/compact",    "Compact context"),
+        ("/fix",        "Fix session"),
+        ("/dump",       "Dump session data"),
+        ("/loadmore",   "Load more history"),
+        ("/resume",     "Toggle resume mode"),
+        ("/models",     "Show/switch model"),
+        ("/model",      "Set active model"),
+        ("/provider",   "Set active provider"),
+        ("/connect",    "Reconnect agent"),
+        ("/config",     "Configure memory"),
+        ("/remember",   "Remember a fact"),
+        ("/recall",     "Recall facts"),
+        ("/skills",     "List skills"),
+        ("/learn",      "Learn a new skill"),
+        ("/learn-suggest", "Suggest skill to learn"),
+        ("/workspace",  "Switch project folder"),
+    ]
+
+    @on(TextArea.Changed, "#prompt-input")
+    def _on_input_change(self) -> None:
+        """Watch for slash-command typing to show suggestions."""
+        try:
+            input_widget = self.query_one("#prompt-input", ChatInput)
+            suggest = self.query_one("#cmd-suggest", ListView)
+        except NoMatches:
+            return
+
+        text = input_widget.text
+        if not text.startswith("/") or " " in text:
+            # Hide if not a slash-command prefix
+            suggest.remove_class("cmd-suggest-visible")
+            return
+
+        # Filter matching commands
+        prefix = text.lower()
+        matches = [(k, d) for k, d in self.SLASH_COMMANDS if k.startswith(prefix)]
+
+        if not matches:
+            suggest.remove_class("cmd-suggest-visible")
+            return
+
+        suggest.clear()
+        for key, desc in matches:
+            item = ListItem(
+                Label(f"[bold]{key:<14}[/bold] [dim]{desc}[/dim]")
+            )
+            suggest.append(item)
+
+        suggest.add_class("cmd-suggest-visible")
+        # Don't steal focus — keep input focused for further typing
+
+    @on(ListView.Selected, "#cmd-suggest")
+    def _on_suggest_selected(self, event: ListView.Selected) -> None:
+        """Insert the selected slash command into the input."""
+        try:
+            input_widget = self.query_one("#prompt-input", ChatInput)
+            suggest = self.query_one("#cmd-suggest", ListView)
+        except NoMatches:
+            return
+
+        if event.item:
+            # Extract the command from the first label in the item
+            label = event.item.query_one(Label)
+            if label:
+                cmd = label.renderable.split("[")[0].strip()
+                if cmd:
+                    input_widget.load_text(cmd + " ")
+                    input_widget.move_cursor(input_widget.document.end)
+                    input_widget.focus()
+
+        suggest.remove_class("cmd-suggest-visible")
+
+    def _hide_suggestions(self) -> None:
+        """Hide the suggestion dropdown."""
+        try:
+            suggest = self.query_one("#cmd-suggest", ListView)
+            suggest.remove_class("cmd-suggest-visible")
+        except NoMatches:
+            pass
 
     @on(Button.Pressed, "#send-btn")
     async def _on_send_btn(self) -> None:
@@ -2056,6 +2151,8 @@ class HomeScreen(Screen[Any]):
             btn.add_class("mode-plan")
 
     def action_focus_prompt(self) -> None:
+        """Focus the chat input and hide suggestions."""
+        self._hide_suggestions()
         self.query_one("#prompt-input", ChatInput).focus()
 
     def action_show_command_palette(self) -> None:

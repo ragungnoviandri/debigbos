@@ -21,9 +21,10 @@ from typing import Any
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical
+from textual.css.query import NoMatches
 from textual.message import Message
 from textual.reactive import reactive
-from textual.widgets import Button, RichLog, Static, TextArea
+from textual.widgets import Button, Label, ListView, RichLog, Static, TextArea
 
 
 # ── Helpers ─────────────────────────────────────────────
@@ -139,6 +140,18 @@ class ChatInput(TextArea):
                 super()._on_key(event)
 
         elif event.key == "down":
+            # Check if suggestions dropdown is visible
+            try:
+                screen = self.screen
+                suggest = screen.query_one("#cmd-suggest")
+                if suggest.has_class("cmd-suggest-visible"):
+                    suggest.focus()
+                    event.stop()
+                    event.prevent_default()
+                    return
+            except (NoMatches, AttributeError):
+                pass
+
             if self._history_index > 0:
                 self._history_index -= 1
                 history = self._get_user_messages()
@@ -156,6 +169,28 @@ class ChatInput(TextArea):
                 super()._on_key(event)
 
         elif event.key == "enter":
+            # If suggestions visible, fill in first match + space
+            try:
+                screen = self.screen
+                suggest = screen.query_one("#cmd-suggest")
+                if suggest.has_class("cmd-suggest-visible"):
+                    event.stop()
+                    event.prevent_default()
+                    items = suggest.children
+                    if items:
+                        # Get the first item's label text
+                        first = items[0]
+                        label = first.query_one(Label)
+                        if label:
+                            cmd = str(label.renderable).split("[")[0].strip()
+                            if cmd:
+                                self.load_text(cmd + " ")
+                                self.move_cursor(self.document.end)
+                                suggest.remove_class("cmd-suggest-visible")
+                    return
+            except (NoMatches, AttributeError):
+                pass
+
             event.stop()
             event.prevent_default()
             text = self.text.strip()
