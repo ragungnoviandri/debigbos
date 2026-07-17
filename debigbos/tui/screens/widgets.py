@@ -169,24 +169,23 @@ class ChatInput(TextArea):
                 super()._on_key(event)
 
         elif event.key == "enter":
-            # If suggestions visible, fill in first match + space
+            # If suggestions visible, fill in highlighted command
             try:
                 screen = self.screen
                 suggest = screen.query_one("#cmd-suggest")
                 if suggest.has_class("cmd-suggest-visible"):
                     event.stop()
                     event.prevent_default()
-                    items = suggest.children
+                    # Get highlighted (or first) item
+                    items = list(suggest.children)
                     if items:
-                        # Get the first item's label text
-                        first = items[0]
-                        label = first.query_one(Label)
-                        if label:
-                            cmd = str(label.renderable).split("[")[0].strip()
-                            if cmd:
-                                self.load_text(cmd + " ")
-                                self.move_cursor(self.document.end)
-                                suggest.remove_class("cmd-suggest-visible")
+                        idx = suggest.index if suggest.index is not None else 0
+                        item = items[idx] if 0 <= idx < len(items) else items[0]
+                        cmd = getattr(item, "CMD", None)
+                        if cmd:
+                            self.load_text(cmd + " ")
+                            self.move_cursor(self.document.end)
+                            suggest.remove_class("cmd-suggest-visible")
                     return
             except (NoMatches, AttributeError):
                 pass

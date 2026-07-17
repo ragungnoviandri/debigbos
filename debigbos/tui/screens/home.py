@@ -719,12 +719,13 @@ class HomeScreen(Screen[Any]):
         suggest.clear()
         for key, desc in matches:
             item = ListItem(
-                Label(f"[bold]{key:<14}[/bold] [dim]{desc}[/dim]")
+                Label(f"[bold]{key:<14}[/bold] [dim]{desc}[/dim]"),
             )
+            item.CMD = key  # store command for easy retrieval
             suggest.append(item)
 
         suggest.add_class("cmd-suggest-visible")
-        # Don't steal focus — keep input focused for further typing
+        suggest.index = 0  # highlight first item
 
     @on(ListView.Selected, "#cmd-suggest")
     def _on_suggest_selected(self, event: ListView.Selected) -> None:
@@ -736,14 +737,11 @@ class HomeScreen(Screen[Any]):
             return
 
         if event.item:
-            # Extract the command from the first label in the item
-            label = event.item.query_one(Label)
-            if label:
-                cmd = label.renderable.split("[")[0].strip()
-                if cmd:
-                    input_widget.load_text(cmd + " ")
-                    input_widget.move_cursor(input_widget.document.end)
-                    input_widget.focus()
+            cmd = getattr(event.item, "CMD", None)
+            if cmd:
+                input_widget.load_text(cmd + " ")
+                input_widget.move_cursor(input_widget.document.end)
+                input_widget.focus()
 
         suggest.remove_class("cmd-suggest-visible")
 
