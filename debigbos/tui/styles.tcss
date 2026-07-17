@@ -374,6 +374,40 @@ TabPane {
     border: solid gray;
 }
 
+/* ══════════════════════════════════════════════════════════
+   COMMAND PALETTE (Ctrl+P)
+   ══════════════════════════════════════════════════════════ */
+#cmdpalette {
+    width: 55;
+    max-width: 80%;
+    height: auto;
+    max-height: 70%;
+    background: #1a1a2e;
+    border: thick #5c9cf5;
+    padding: 1;
+}
+#cmdpalette-search {
+    width: 100%;
+    margin-bottom: 1;
+}
+#cmdpalette-list {
+    height: auto;
+    max-height: 1fr;
+    overflow-y: auto;
+}
+#cmdpalette-list .cmd-entry {
+    width: 100%;
+    text-align: left;
+    padding: 0 1;
+    min-height: 3;
+}
+#cmdpalette-list .cmd-entry:hover {
+    background: #5c9cf5 30%;
+}
+#cmdpalette-list .cmd-entry:focus {
+    background: #5c9cf5 40%;
+}
+
 /* PROVIDERS SECTION */
 #provider-list {
     max-height: 12;

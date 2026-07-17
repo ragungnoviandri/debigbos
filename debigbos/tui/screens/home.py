@@ -83,6 +83,7 @@ class HomeScreen(Screen[Any]):
         ("ctrl+a", "select_all", "Select All"),
         ("ctrl+r", "rename_session", "Rename Session"),
         ("ctrl+m", "show_models", "Models"),
+        ("ctrl+p", "show_command_palette", "Command Palette"),
         ("tab", "toggle_mode", "Toggle Plan/Build"),
         ("escape", "focus_prompt", "Focus ChatInput"),
     ]
@@ -2038,6 +2039,10 @@ class HomeScreen(Screen[Any]):
 
     def action_focus_prompt(self) -> None:
         self.query_one("#prompt-input", ChatInput).focus()
+
+    def action_show_command_palette(self) -> None:
+        """Open the command palette (delegate to app)."""
+        self.app.action_command_palette()
 
     def action_quit(self) -> None:
         if self.agent:
