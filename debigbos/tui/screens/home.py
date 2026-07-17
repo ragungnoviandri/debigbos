@@ -433,22 +433,7 @@ class HomeScreen(Screen[Any]):
                 ("r", "rename_session", "Rename"),
                 ("n", "new_session", "New Session"),
             ]
-
-            DEFAULT_CSS = """
-            SessionPicker {
-                align: center middle;
-                background: transparent;
-            }
-            SessionPicker > Vertical {
-                width: 50;
-                height: 10;
-                max-height: 80%;
-                background: #212121;
-                border: thick #5c9cf5;
-                padding: 1 2;
-            }
-            """
-
+ 
             def __init__(self, sessions_data, agent):
                 super().__init__()
                 self.sessions_data = sessions_data
@@ -1998,19 +1983,6 @@ class HomeScreen(Screen[Any]):
 
         class RenameDialog(ModalScreen[str | None]):
             BINDINGS = [("escape", "dismiss_none", "Cancel")]
-            DEFAULT_CSS = """
-            RenameDialog {
-                align: center middle;
-                background: transparent;
-            }
-            RenameDialog > Vertical {
-                width: 50;
-                height: auto;
-                background: #212121;
-                border: thick #5c9cf5;
-                padding: 1 2;
-            }
-            """
             def __init__(self, prompt: str, default: str):
                 super().__init__()
                 self._prompt = prompt
