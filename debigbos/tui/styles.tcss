@@ -386,26 +386,23 @@ TabPane {
     border: thick #5c9cf5;
     padding: 1;
 }
-#cmdpalette-search {
-    width: 100%;
-    margin-bottom: 1;
-}
-#cmdpalette-list {
-    height: auto;
-    max-height: 1fr;
+/* ── Command Palette (full-screen overlay) ────────────── */
+#cmdpalette-overlay {
+    width: 80%;
+    height: 90%;
+    align: center middle;
+    background: $surface 95%;
+    border: thick $accent;
+    padding: 2 4;
     overflow-y: auto;
 }
-#cmdpalette-list .cmd-entry {
-    width: 100%;
-    text-align: left;
-    padding: 0 1;
-    min-height: 3;
+#cmdpalette-overlay Horizontal {
+    height: auto;
 }
-#cmdpalette-list .cmd-entry:hover {
-    background: #5c9cf5 30%;
-}
-#cmdpalette-list .cmd-entry:focus {
-    background: #5c9cf5 40%;
+.cmd-col {
+    width: 1fr;
+    height: auto;
+    padding: 1;
 }
 
 /* PROVIDERS SECTION */

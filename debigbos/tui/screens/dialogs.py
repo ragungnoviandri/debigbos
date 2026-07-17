@@ -22,6 +22,7 @@ from textual.widgets import (
     Input,
     Label,
     Select,
+    Static,
     Switch,
 )
 
@@ -465,62 +466,63 @@ class AddProviderDialog(ModalScreen[str | None]):
         self.dismiss(name)
 
 
-class CommandPalette(ModalScreen[str | None]):
-    """Searchable command palette — Ctrl+P."""
+class CommandPalette(ModalScreen[None]):
+    """Full-screen keyboard shortcuts reference — grouped by category in columns."""
 
-    COMMANDS: list[dict] = [
-        {"action": "toggle_mode",       "label": "Toggle Mode",       "keys": "Tab",     "desc": "Switch Plan ⇄ Build"},
-        {"action": "show_sessions",     "label": "Session List",      "keys": "Ctrl+S",  "desc": "Switch or create sessions"},
-        {"action": "show_models",       "label": "Change Model",      "keys": "Ctrl+M",  "desc": "Switch provider or model"},
-        {"action": "show_settings",     "label": "Settings",          "keys": "Ctrl+,",  "desc": "Configure de BigBos"},
-        {"action": "show_help",         "label": "Help / Shortcuts",  "keys": "Ctrl+H",  "desc": "Show keybindings"},
-        {"action": "focus_input",       "label": "Focus Chat Input",  "keys": "Esc",     "desc": "Jump to message input"},
-        {"action": "copy_text",         "label": "Copy Selection",    "keys": "Ctrl+C",  "desc": "Copy selected text"},
-        {"action": "rename_session",    "label": "Rename Session",    "keys": "Ctrl+R",  "desc": "Rename current session"},
-        {"action": "new_session",       "label": "New Session",       "keys": "",        "desc": "Start a fresh session"},
-        {"action": "quit",              "label": "Quit",              "keys": "Ctrl+Q",  "desc": "Exit de BigBos"},
+    CATEGORIES: list[dict] = [
+        {"title": "💬 Chat",  "items": [
+            ("Enter",    "Send Message"),
+            ("Ctrl+J",   "New Line"),
+            ("↑ / ↓",    "History"),
+        ]},
+        {"title": "🧭 Navigate",  "items": [
+            ("Esc",      "Focus Chat Input"),
+            ("Tab",      "Toggle Plan ⇄ Build"),
+            ("Ctrl+P",   "Command Palette"),
+            ("Ctrl+H",   "Help / Shortcuts"),
+        ]},
+        {"title": "📁 Sessions",  "items": [
+            ("Ctrl+S",   "Session List"),
+            ("Ctrl+R",   "Rename Session"),
+            ("Ctrl+N",   "New Session"),
+        ]},
+        {"title": "⚡ Actions",  "items": [
+            ("Ctrl+M",   "Change Model"),
+            ("Ctrl+,",   "Settings"),
+            ("Ctrl+Q",   "Quit"),
+            ("Ctrl+C",   "Copy Selection"),
+        ]},
     ]
 
-    BINDINGS = [("escape", "close", "Close")]
+    BINDINGS = [("escape", "dismiss", "Close")]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="cmdpalette", classes="modal-container"):
-            yield Label("🔍  Command Palette", id="dialog-title")
-            yield Input(id="cmdpalette-search", placeholder="Search...")
-            yield VerticalScroll(id="cmdpalette-list")
+        with Vertical(id="cmdpalette-overlay"):
+            yield Label("[bold #5c9cf5]        ╔══════════════════════════════════════╗")
+            yield Label("[bold #5c9cf5]        ║        🔍  Command Palette          ║")
+            yield Label("[bold #5c9cf5]        ╚══════════════════════════════════════╝")
+            yield Label("")
+            yield Label("[dim]        Press a keybinding to execute — Esc to close[/dim]")
+            yield Label("")
 
-    def on_mount(self) -> None:
-        self._populate("")
-        self.query_one("#cmdpalette-search", Input).focus()
+            # Row 1: Chat + Navigate
+            with Horizontal():
+                yield Static(self._build_category_block(self.CATEGORIES[0]), classes="cmd-col")
+                yield Static(self._build_category_block(self.CATEGORIES[1]), classes="cmd-col")
 
-    @on(Input.Changed, "#cmdpalette-search")
-    def _on_search(self, event: Input.Changed) -> None:
-        self._populate(event.value.strip().lower())
+            yield Label("")
 
-    def _populate(self, query: str) -> None:
-        container = self.query_one("#cmdpalette-list", VerticalScroll)
-        container.remove_children()
-        focused = None
-        for cmd in self.COMMANDS:
-            if query and query not in cmd["label"].lower() and query not in cmd["action"].lower():
-                continue
-            keys = f"  [dim]({cmd['keys']})[/dim]" if cmd["keys"] else ""
-            btn = Button(
-                f"  [bold]{cmd['label']}[/bold]{keys}  [dim italic]{cmd['desc']}[/dim italic]",
-                id=f"cmd-{cmd['action']}",
-                classes="cmd-entry",
-            )
-            btn.action_name = cmd["action"]
-            container.mount(btn)
-            if focused is None:
-                focused = btn
-                btn.focus()
+            # Row 2: Sessions + Actions
+            with Horizontal():
+                yield Static(self._build_category_block(self.CATEGORIES[2]), classes="cmd-col")
+                yield Static(self._build_category_block(self.CATEGORIES[3]), classes="cmd-col")
 
-    @on(Button.Pressed, ".cmd-entry")
-    def _on_cmd_selected(self, event: Button.Pressed) -> None:
-        action = getattr(event.button, "action_name", None)
-        if action:
-            self.dismiss(action)
+    def _build_category_block(self, cat: dict) -> str:
+        lines = [f"[bold #fab283]  {cat['title']}[/bold #fab283]"]
+        lines.append("  " + "─" * 20)
+        for key, desc in cat["items"]:
+            lines.append(f"    [dim]{key:<10}[/dim]  [dim italic]{desc}[/dim italic]")
+        return "\n".join(lines)
 
-    def action_close(self) -> None:
+    def action_dismiss(self) -> None:
         self.dismiss(None)

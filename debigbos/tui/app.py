@@ -95,22 +95,9 @@ class BigBosApp(App[Any]):
                 pass
 
     def action_command_palette(self) -> None:
-        """Show command palette dialog."""
+        """Show full-screen keyboard reference."""
         from .screens.dialogs import CommandPalette
-
-        def _on_palette_result(action: str | None) -> None:
-            if not action:
-                return
-            # Dispatch to the active screen
-            screen = self.screen
-            method_name = f"action_{action}"
-            method = getattr(screen, method_name, None)
-            if method:
-                method()
-            else:
-                self.notify(f"Unknown command: {action}", severity="error")
-
-        self.push_screen(CommandPalette(), _on_palette_result)
+        self.push_screen(CommandPalette())
 
 
 async def run_app(
