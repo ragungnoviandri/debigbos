@@ -83,6 +83,7 @@ class ChatInput(TextArea):
 
     BINDINGS = [
         ("ctrl+j", "insert_newline", "New Line"),
+        ("ctrl+a", "select_all", "Select All"),
     ]
 
     def on_mount(self) -> None:

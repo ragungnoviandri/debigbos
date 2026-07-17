@@ -493,17 +493,17 @@ class CommandPalette(ModalScreen[None]):
             ("Ctrl+C",   "Copy Selection"),
         ]},
         {"title": "💻 CLI",  "items": [
-            ("bos init",    "Init config"),
-            ("bos install", "Global install"),
-            ("bos setup",   "Interactive setup"),
-            ("bos config",  "View/change config"),
-            ("bos run",     "One-shot query"),
-            ("bos chat",    "Launch TUI"),
-            ("bos server",  "HTTP API server"),
-            ("bos import",  "Import sessions"),
-            ("bos sessions","List/rename"),
-            ("bos update",  "Check update"),
-            ("bos version", "Show version"),
+            ("debigbos init",    "Init config"),
+            ("debigbos install", "Global install"),
+            ("debigbos setup",   "Interactive setup"),
+            ("debigbos config",  "View/change config"),
+            ("debigbos run",     "One-shot query"),
+            ("debigbos chat",    "Launch TUI"),
+            ("debigbos server",  "HTTP API server"),
+            ("debigbos import",  "Import sessions"),
+            ("debigbos sessions","List/rename"),
+            ("debigbos update",  "Check update"),
+            ("debigbos version", "Show version"),
         ]},
     ]
 
@@ -512,7 +512,7 @@ class CommandPalette(ModalScreen[None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="cmdpalette-overlay"):
             yield Label("[bold #5c9cf5]        ╔══════════════════════════════════════╗")
-            yield Label("[bold #5c9cf5]        ║        🔍  Command Palette          ║")
+            yield Label("[bold #5c9cf5]        ║        🔍  Command Palette           ║")
             yield Label("[bold #5c9cf5]        ╚══════════════════════════════════════╝")
             yield Label("")
             yield Label("[dim]        Press a keybinding to execute — Esc to close[/dim]")
@@ -520,13 +520,13 @@ class CommandPalette(ModalScreen[None]):
 
             # Row 1: Chat + Navigate + Sessions
             with Horizontal():
-                for i in range(3):
+                for i in range(4):
                     yield Static(self._build_category_block(self.CATEGORIES[i]), classes="cmd-col")
             yield Label("")
 
             # Row 2: Actions + CLI
             with Horizontal():
-                for i in range(3, 5):
+                for i in range(4, 5):
                     yield Static(self._build_category_block(self.CATEGORIES[i]), classes="cmd-col")
 
     def _build_category_block(self, cat: dict) -> str:
