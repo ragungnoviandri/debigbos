@@ -119,6 +119,19 @@ class ChatInput(TextArea):
         return result
 
     def _on_key(self, event) -> None:
+        if event.key == "escape":
+            # Close suggestions dropdown
+            try:
+                screen = self.screen
+                suggest = screen.query_one("#cmd-suggest")
+                if suggest.has_class("cmd-suggest-visible"):
+                    suggest.remove_class("cmd-suggest-visible")
+                    event.stop()
+                    event.prevent_default()
+                    return
+            except (NoMatches, AttributeError):
+                pass
+
         if event.key == "up":
             history = self._get_user_messages()
             if history:
@@ -169,23 +182,22 @@ class ChatInput(TextArea):
                 super()._on_key(event)
 
         elif event.key == "enter":
-            # If suggestions visible, fill in highlighted command
+            # If suggestions visible, execute highlighted command directly
             try:
                 screen = self.screen
                 suggest = screen.query_one("#cmd-suggest")
                 if suggest.has_class("cmd-suggest-visible"):
                     event.stop()
                     event.prevent_default()
-                    # Get highlighted (or first) item
                     items = list(suggest.children)
                     if items:
                         idx = suggest.index if suggest.index is not None else 0
                         item = items[idx] if 0 <= idx < len(items) else items[0]
                         cmd = getattr(item, "CMD", None)
                         if cmd:
-                            self.load_text(cmd + " ")
-                            self.move_cursor(self.document.end)
                             suggest.remove_class("cmd-suggest-visible")
+                            if hasattr(screen, '_handle_command'):
+                                asyncio.create_task(screen._handle_command(cmd))
                     return
             except (NoMatches, AttributeError):
                 pass

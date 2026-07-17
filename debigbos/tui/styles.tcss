@@ -456,7 +456,7 @@ TabPane {
     width: auto;
     height: auto;
     content-align-horizontal: left;
-    content-align-vertical: center;
+    content-align-vertical: middle;
     padding: 0 1;
 }
 .provider-model-select {

@@ -773,24 +773,6 @@ class HomeScreen(Screen[Any]):
         suggest.add_class("cmd-suggest-visible")
         suggest.index = 0  # highlight first item
 
-    @on(ListView.Selected, "#cmd-suggest")
-    def _on_suggest_selected(self, event: ListView.Selected) -> None:
-        """Insert the selected slash command into the input."""
-        try:
-            input_widget = self.query_one("#prompt-input", ChatInput)
-            suggest = self.query_one("#cmd-suggest", ListView)
-        except NoMatches:
-            return
-
-        if event.item:
-            cmd = getattr(event.item, "CMD", None)
-            if cmd:
-                input_widget.load_text(cmd + " ")
-                input_widget.move_cursor(input_widget.document.end)
-                input_widget.focus()
-
-        suggest.remove_class("cmd-suggest-visible")
-
     def _hide_suggestions(self) -> None:
         """Hide the suggestion dropdown."""
         try:
